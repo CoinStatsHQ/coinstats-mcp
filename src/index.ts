@@ -4,20 +4,20 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { registerTools } from './tools/toolFactory.js';
 import { allToolConfigs } from './tools/toolConfigs.js';
 
-// Create server instance
-const server = new McpServer({
-    name: 'coinstats-mcp',
-    version: '1.0.0',
-    capabilities: {
-        resources: {},
-        tools: {},
-    },
-});
-
-// Register all tools from configurations
-registerTools(server, allToolConfigs);
-
 async function main() {
+    // Create server instance
+    const server = new McpServer({
+        name: 'coinstats-mcp',
+        version: '1.0.0',
+        capabilities: {
+            resources: {},
+            tools: {},
+        },
+    });
+
+    // Register all tools from configurations
+    registerTools(server, allToolConfigs);
+
     const transport = new StdioServerTransport();
     await server.connect(transport);
     console.error('CoinStats MCP Server running on stdio');
