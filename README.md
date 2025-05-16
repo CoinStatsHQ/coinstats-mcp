@@ -2,6 +2,10 @@
 
 MCP Server for the CoinStats API. Provides access to cryptocurrency market data, portfolio tracking, and news.
 
+<a href="https://glama.ai/mcp/servers/@CoinStatsHQ/coinstats-mcp">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/@CoinStatsHQ/coinstats-mcp/badge" alt="CoinStats Server MCP server" />
+</a>
+
 ## Setup
 
 ### API Key
