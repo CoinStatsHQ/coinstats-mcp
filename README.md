@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/coinstatshq-coinstats-mcp-badge.png)](https://mseep.ai/app/coinstatshq-coinstats-mcp)
+
 # CoinStats MCP Server
 
 MCP Server for the CoinStats API. Provides access to cryptocurrency market data, portfolio tracking, and news.
