@@ -238,6 +238,42 @@ export default {
             });
         }
 
+        // RFC 8414 Authorization Server Metadata, mirrored from the upstream
+        // AS so older MCP clients that don't follow the RFC 9728 indirection
+        // can still discover endpoints. Some clients also probe for `/mcp/`-
+        // prefixed and `/mcp`-suffixed variants based on different
+        // assumptions about which URL is the issuer — handle all three.
+        if (
+            url.pathname === '/.well-known/oauth-authorization-server' ||
+            url.pathname === '/mcp/.well-known/oauth-authorization-server' ||
+            url.pathname === '/.well-known/oauth-authorization-server/mcp'
+        ) {
+            const upstream = `${env.OAUTH_ISSUER.replace(/\/$/, '')}/.well-known/oauth-authorization-server`;
+            try {
+                const res = await fetch(upstream, {
+                    headers: { Accept: 'application/json' },
+                    cf: { cacheTtl: 3600, cacheEverything: true },
+                });
+                const body = await res.text();
+                return new Response(body, {
+                    status: res.status,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Cache-Control': 'public, max-age=3600',
+                        ...corsHeaders(),
+                    },
+                });
+            } catch {
+                return new Response(
+                    JSON.stringify({ error: 'upstream_unavailable' }),
+                    {
+                        status: 502,
+                        headers: { 'Content-Type': 'application/json', ...corsHeaders() },
+                    }
+                );
+            }
+        }
+
         // MCP endpoints
         if (url.pathname === '/mcp') {
             if (request.method === 'POST') return handleMcpPost(request, env);
