@@ -1,7 +1,7 @@
 {
     "name": "@coinstats/coinstats-mcp",
-    "version": "1.0.6",
-    "description": "MCP server for CoinStats API integration",
+    "version": "2.0.0",
+    "description": "MCP server for CoinStats API integration — stdio CLI + Cloudflare Worker",
     "main": "dist/index.js",
     "bin": {
         "coinstats-mcp": "dist/index.js"
@@ -17,23 +17,30 @@
         "model context protocol",
         "ai",
         "mcp server",
-        "coinstats mcp"
+        "coinstats mcp",
+        "cloudflare workers"
     ],
     "author": "CoinStats",
     "license": "MIT",
     "scripts": {
-        "build": "npm i && npm run build:types && npm run build:js && shx chmod +x dist/*.js",
+        "build": "npm i && npm run build:types && npm run build:js && shx chmod +x dist/index.js",
         "build:js": "tsc",
-        "build:types": "tsc --emitDeclarationOnly"
+        "build:types": "tsc --emitDeclarationOnly",
+        "dev": "wrangler dev",
+        "deploy": "wrangler deploy",
+        "tail": "wrangler tail"
     },
     "dependencies": {
-        "@modelcontextprotocol/sdk": "^1.8.0",
-        "zod": "^3.24.2"
+        "@modelcontextprotocol/sdk": "^1.29.0",
+        "zod": "^3.24.2",
+        "zod-to-json-schema": "^3.24.5"
     },
     "devDependencies": {
+        "@cloudflare/workers-types": "^4.20251001.0",
         "@types/node": "^22.13.13",
         "shx": "^0.4.0",
-        "typescript": "^5.8.2"
+        "typescript": "^5.8.2",
+        "wrangler": "^4.32.0"
     },
     "engines": {
         "node": ">=18.0.0"
