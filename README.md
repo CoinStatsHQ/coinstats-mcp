@@ -161,7 +161,10 @@ npm run build
 # Run the Worker locally (requires `wrangler login` first)
 npm run dev
 
-# Deploy the Worker
+# Deploy the Worker — needs CLOUDFLARE_ACCOUNT_ID exported in the env
+# (the account ID isn't committed to wrangler.jsonc; pull it from the
+# Cloudflare dashboard sidebar or the CI deploy job's secrets).
+export CLOUDFLARE_ACCOUNT_ID=<your-cf-account-id>
 npm run deploy
 
 # Tail production logs
