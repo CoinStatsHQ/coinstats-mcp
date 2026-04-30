@@ -4,81 +4,88 @@ import { universalApiHandler } from '../services/request.js';
 import { COINSTATS_API_BASE } from '../config/constants.js';
 import { saveToCache, getFromCache } from '../utils/cache.js';
 
-// Tool configuration interface
 export interface ToolConfig<T> {
     name: string;
     description: string;
     endpoint: string;
-    method?: string; // HTTP method (GET, POST, PUT, DELETE, etc.)
-    basePath?: string; // Optional, defaults to COINSTATS_API_BASE
+    method?: string;
+    basePath?: string;
     parameters: Record<string, ZodType>;
-    isLocal?: boolean; // Flag indicating if this tool performs a local operation
+    isLocal?: boolean;
 }
 
-// Register all tools with the MCP server
-export function registerTools(server: McpServer, toolConfigs: ToolConfig<any>[]) {
+export interface ToolResult {
+    content: Array<{ type: 'text'; text: string; isError?: boolean }>;
+}
+
+export type TokenResolver = () => string | undefined;
+
+/**
+ * Run a single tool. Used by both the stdio entry (via the McpServer
+ * wrapper in `registerTools`) and the Workers fetch handler (which
+ * dispatches JSON-RPC `tools/call` directly without going through the
+ * SDK's transport).
+ */
+export async function invokeTool(
+    config: ToolConfig<any>,
+    params: Record<string, any>,
+    token?: string
+): Promise<ToolResult> {
+    if (config.isLocal) {
+        if (config.name === 'save-share-token') {
+            await saveToCache('shareToken', params.shareToken);
+            return { content: [{ type: 'text', text: 'Share token saved successfully' }] };
+        }
+        if (config.name === 'get-share-token') {
+            const shareToken = await getFromCache('shareToken');
+            return {
+                content: [
+                    {
+                        type: 'text',
+                        text: shareToken ? shareToken : 'No share token found in cache',
+                        isError: !shareToken,
+                    },
+                ],
+            };
+        }
+        return { content: [{ type: 'text', text: 'Operation completed' }] };
+    }
+
+    const basePath = config.basePath || COINSTATS_API_BASE;
+    const method = config.method || 'GET';
+    const bodyMethods = ['POST', 'PUT', 'PATCH', 'DELETE'];
+
+    if (bodyMethods.includes(method.toUpperCase())) {
+        return universalApiHandler(basePath, config.endpoint, method, {}, params, token);
+    }
+    return universalApiHandler(basePath, config.endpoint, method, params, undefined, token);
+}
+
+/**
+ * Register every tool from `toolConfigs` on the given MCP server. The
+ * stdio entry point uses this; the Worker entry point dispatches
+ * `tools/call` directly to `invokeTool` without an `McpServer`.
+ *
+ * `getToken` resolves the caller's bearer token at invocation time
+ * (omitted on stdio — `request.ts` then falls back to `COINSTATS_API_KEY`).
+ */
+export function registerTools(
+    server: McpServer,
+    toolConfigs: ToolConfig<any>[],
+    getToken?: TokenResolver
+) {
     toolConfigs.forEach((config) => {
-        server.tool(config.name, config.description, config.parameters, async (params: Record<string, any>) => {
-            // Handle local operations
-            if (config.isLocal) {
-                // Handle specific local tools
-                if (config.name === 'save-share-token') {
-                    await saveToCache('shareToken', params.shareToken);
-                    return {
-                        content: [
-                            {
-                                type: 'text',
-                                text: 'Share token saved successfully',
-                            },
-                        ],
-                    };
-                }
-
-                if (config.name === 'get-share-token') {
-                    const shareToken = await getFromCache('shareToken');
-
-                    return {
-                        content: [
-                            {
-                                type: 'text',
-                                text: shareToken ? shareToken : 'No share token found in cache',
-                                isError: !shareToken,
-                            },
-                        ],
-                    };
-                }
-                // Future local tools can be added here
-
-                // Default response for unhandled local tools
-                return {
-                    content: [
-                        {
-                            type: 'text',
-                            text: 'Operation completed',
-                        },
-                    ],
-                };
-            }
-
-            // Handle API operations
-            const basePath = config.basePath || COINSTATS_API_BASE;
-            const method = config.method || 'GET';
-
-            // Methods that typically have a request body
-            const bodyMethods = ['POST', 'PUT', 'PATCH', 'DELETE'];
-
-            // For GET/DELETE requests, all params go in the URL
-            // For POST/PUT/PATCH, send params as the body
-            if (bodyMethods.includes(method.toUpperCase())) {
-                return universalApiHandler(basePath, config.endpoint, method, {}, params);
-            } else {
-                return universalApiHandler(basePath, config.endpoint, method, params);
-            }
-        });
+        // Cast to any to short-circuit the SDK's deep ZodRawShape inference,
+        // which TS otherwise refuses to resolve for a heterogeneous tool list.
+        (server.tool as any)(
+            config.name,
+            config.description,
+            config.parameters,
+            (params: Record<string, any>) => invokeTool(config, params, getToken?.())
+        );
     });
 }
 
-// Create a standard tool configuration
 export function createToolConfig<T>(
     name: string,
     description: string,

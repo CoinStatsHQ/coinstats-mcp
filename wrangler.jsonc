@@ -1,0 +1,22 @@
+{
+    "$schema": "node_modules/wrangler/config-schema.json",
+    "name": "coinstats-mcp",
+    "main": "src/worker.ts",
+    "compatibility_date": "2025-04-01",
+    "compatibility_flags": ["nodejs_compat"],
+    "account_id": "2602baa52194714c62790c80aa504514",
+    "routes": [
+        {
+            "pattern": "mcp.coinstats.app",
+            "custom_domain": true
+        }
+    ],
+    "vars": {
+        "OAUTH_ISSUER": "https://api.coin-stats.com",
+        "COINSTATS_API_BASE_URL": "https://openapiv1.coinstats.app",
+        "MCP_RESOURCE_URL": "https://mcp.coinstats.app"
+    },
+    "observability": {
+        "enabled": true
+    }
+}

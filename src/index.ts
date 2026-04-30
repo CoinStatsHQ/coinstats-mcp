@@ -7,11 +7,7 @@ import { allToolConfigs } from './tools/toolConfigs.js';
 // Create server instance
 const server = new McpServer({
     name: 'coinstats-mcp',
-    version: '1.0.0',
-    capabilities: {
-        resources: {},
-        tools: {},
-    },
+    version: '2.0.0',
 });
 
 // Register all tools from configurations
