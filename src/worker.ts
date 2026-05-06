@@ -29,11 +29,21 @@ function resolveResourceUrl(env: Env, request: Request): string {
 /**
  * RFC 9728 Protected Resource Metadata. MCP clients fetch this to
  * discover which authorization server can issue tokens for this MCP.
+ *
+ * `scopes_supported` is advertised explicitly so MCP clients know which
+ * scope to request for THIS resource. Without it, clients fall back to
+ * the AS metadata's `scopes_supported`, which now lists ['coinstats',
+ * 'admin'] (admin scope was added for the internal admin-MCP). Claude.ai
+ * then requests both, and cloud rejects the combination with
+ * `invalid_scope: admin scope cannot be combined with other scopes`.
+ * Pinning to ['coinstats'] here keeps the consumer MCP's authorization
+ * flow correct regardless of what the AS supports globally.
  */
 function protectedResourceMetadata(env: Env, request: Request) {
     return {
         resource: resolveResourceUrl(env, request),
         authorization_servers: [env.OAUTH_ISSUER],
+        scopes_supported: ['coinstats'],
         bearer_methods_supported: ['header'],
     };
 }
