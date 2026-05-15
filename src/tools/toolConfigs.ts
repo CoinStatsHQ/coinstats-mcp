@@ -248,7 +248,19 @@ export const allToolConfigs: ToolConfig<any>[] = [
         endpoint: '/exchange/balance',
         method: 'POST',
         parameters: {
-            connectionFields: z.object({}).describe('The credentials given from exchange. key, secret etc.'),
+            connectionFields: z
+                .object({
+                    apiKey: z.string().optional().describe('Exchange API key'),
+                    apiSecret: z.string().optional().describe('Exchange API secret'),
+                    passphrase: z
+                        .string()
+                        .optional()
+                        .describe('API passphrase — required by some exchanges (e.g. Bitget, OKX, KuCoin)'),
+                })
+                .passthrough()
+                .describe(
+                    'Exchange API credentials. Required fields vary per exchange — call get-exchanges (/exchange/support) for the exact fields a given connectionId needs. Common fields: apiKey, apiSecret, passphrase.'
+                ),
             connectionId: z.string().describe('The exchange connection id'),
         },
     },

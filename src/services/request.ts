@@ -31,25 +31,22 @@ export async function makeRequestCsApi<T>(
         'Content-Type': 'application/json',
     };
 
-    try {
-        const options: RequestInit = { method, headers };
+    const options: RequestInit = { method, headers };
 
-        if (method !== 'GET' && body) {
-            options.body = JSON.stringify(body);
-        }
-
-        const queryParams = new URLSearchParams(params);
-        const queryString = queryParams.toString();
-        const urlWithParams = queryString ? `${url}?${queryString}` : url;
-
-        const response = await fetch(urlWithParams, options);
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        return (await response.json()) as T;
-    } catch (error) {
-        return null;
+    if (method !== 'GET' && body) {
+        options.body = JSON.stringify(body);
     }
+
+    const queryParams = new URLSearchParams(params);
+    const queryString = queryParams.toString();
+    const urlWithParams = queryString ? `${url}?${queryString}` : url;
+
+    const response = await fetch(urlWithParams, options);
+    if (!response.ok) {
+        const errorBody = await response.text();
+        throw new Error(`CoinStats API error ${response.status}: ${errorBody || response.statusText}`);
+    }
+    return (await response.json()) as T;
 }
 
 /**
@@ -117,8 +114,9 @@ export async function universalApiHandler<T>(
             ],
         };
     } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
         return {
-            content: [{ type: 'text', text: `Error: ${error}`, isError: true }],
+            content: [{ type: 'text', text: `Error: ${message}`, isError: true }],
         };
     }
 }
