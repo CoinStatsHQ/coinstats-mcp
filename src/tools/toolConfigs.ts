@@ -1,6 +1,30 @@
 import { z } from 'zod';
 import { ToolConfig } from './toolFactory.js';
 
+/**
+ * Shown (in place of an empty result) when a portfolio read is called with no
+ * portfolio selector and the account has nothing to aggregate. Gives the user
+ * a concrete next step instead of a misleading "you have no holdings".
+ */
+const PORTFOLIO_EMPTY_GUIDANCE = [
+    'No portfolio data found. You are authenticated, but no portfolio was specified and this account has no API-connected portfolios yet.',
+    '',
+    'To continue, choose one:',
+    '1) View an existing CoinStats portfolio — open the CoinStats app, go to the portfolio, tap Share, and copy the token (the part after /p/ in the share link). Pass it as `shareToken`. If that portfolio is passcode-protected, also pass its 6-digit `passcode`.',
+    '2) Set up a new portfolio here — call `connect-portfolio-wallet` (with a wallet address) or `connect-portfolio-exchange` (with exchange API credentials). Once connected, retry and your holdings will appear automatically.',
+].join('\n');
+
+/**
+ * Accepted `connectionId` / `blockchain` values, per the public-API docs.
+ * `*_FORCEALL` applies where the endpoint supports the latency-bounded "all"
+ * plus the exhaustive "forceall" (wallet balance & wallet status). `*_ALL`
+ * applies where only "all" is documented (wallet transactions sync & defi).
+ */
+const WALLET_NETWORK_VALUES_FORCEALL =
+    'Accepts a single value (e.g. "ethereum"), a comma-separated list ("ethereum,polygon"), "all" (top-tier EVM chains are forced; slower non-top-tier chains may be skipped by a per-chain latency limit), or "forceall" (every supported chain, no latency limit — the response waits for the slowest chain).';
+const WALLET_NETWORK_VALUES_ALL =
+    'Accepts a single value (e.g. "ethereum"), a comma-separated list ("ethereum,polygon"), or "all" for every connection.';
+
 // Collection of all tool configurations
 export const allToolConfigs: ToolConfig<any>[] = [
     // Coin List Tool Configuration
@@ -164,12 +188,19 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // Wallet Balance Tool Configuration
     {
         name: 'get-wallet-balance',
-        description: 'Get the balance data for a provided wallet address on a specific blockchain network.',
+        description: 'Get the balance data for a provided wallet address. Query one network, several, or every supported network at once.',
         endpoint: '/wallet/balance',
         method: 'GET',
         parameters: {
             address: z.string().describe('Wallet address'),
-            connectionId: z.string().describe('The identifier of connection, which you received from /wallet/blockchains call response.'),
+            connectionId: z
+                .string()
+                .optional()
+                .describe(`Connection id from get-blockchains. Provide connectionId OR blockchain (connectionId is used if both are given). ${WALLET_NETWORK_VALUES_FORCEALL}`),
+            blockchain: z
+                .string()
+                .optional()
+                .describe(`Blockchain network id from get-blockchains. Provide connectionId OR blockchain. ${WALLET_NETWORK_VALUES_FORCEALL}`),
         },
     },
 
@@ -197,7 +228,14 @@ export const allToolConfigs: ToolConfig<any>[] = [
         method: 'GET',
         parameters: {
             address: z.string().describe('Wallet address'),
-            connectionId: z.string().describe('The identifier of connection, which you received from /wallet/blockchains call response.'),
+            connectionId: z
+                .string()
+                .optional()
+                .describe(`Connection id from get-blockchains. Provide connectionId OR blockchain (connectionId is used if both are given). ${WALLET_NETWORK_VALUES_FORCEALL}`),
+            blockchain: z
+                .string()
+                .optional()
+                .describe(`Blockchain network id from get-blockchains. Provide connectionId OR blockchain. ${WALLET_NETWORK_VALUES_FORCEALL}`),
         },
     },
 
@@ -226,9 +264,40 @@ export const allToolConfigs: ToolConfig<any>[] = [
         description: 'Initiate the syncing process to update transaction data for a specific wallet.',
         endpoint: '/wallet/transactions',
         method: 'PATCH',
+        // The single-wallet form expects address + connectionId as QUERY
+        // params (no JSON body). Routing them to the body 400s with
+        // "For single wallet sync, both address and connectionId ... must be provided".
+        paramsInQuery: true,
         parameters: {
             address: z.string().describe('Wallet address'),
-            connectionId: z.string().describe('The identifier of connection, which you received from /wallet/blockchains call response.'),
+            connectionId: z
+                .string()
+                .optional()
+                .describe(`Connection id from get-blockchains for single-wallet sync. Provide connectionId OR blockchain (connectionId is used if both are given). ${WALLET_NETWORK_VALUES_ALL}`),
+            blockchain: z
+                .string()
+                .optional()
+                .describe(`Blockchain network id from get-blockchains. Provide connectionId OR blockchain. ${WALLET_NETWORK_VALUES_ALL}`),
+        },
+    },
+
+    // Wallet DeFi Tool Configuration
+    {
+        name: 'get-wallet-defi',
+        description:
+            'Get DeFi positions (staking, liquidity pools, yield farming, earned rewards) for a wallet address. COST WARNING: this is an expensive, paid-plan endpoint — 400 credits per request, multiplied by the number of connectionId/blockchain values, and 4000 credits if either is "all". Prefer a single specific network; avoid "all" unless explicitly requested.',
+        endpoint: '/wallet/defi',
+        method: 'GET',
+        parameters: {
+            address: z.string().describe('Wallet address to query.'),
+            connectionId: z
+                .string()
+                .optional()
+                .describe(`Connection id from get-blockchains. Provide connectionId OR blockchain (connectionId is used if both are given). ${WALLET_NETWORK_VALUES_ALL}`),
+            blockchain: z
+                .string()
+                .optional()
+                .describe(`Blockchain network id from get-blockchains. Provide connectionId OR blockchain. ${WALLET_NETWORK_VALUES_ALL}`),
         },
     },
 
@@ -358,12 +427,52 @@ export const allToolConfigs: ToolConfig<any>[] = [
         parameters: {},
     },
 
+    // Portfolio List Tool Configuration
+    {
+        name: 'get-portfolio-list',
+        description:
+            'Get a list of all API-connected portfolios (those created via connect-portfolio-wallet or connect-portfolio-exchange). Returns each portfolio\'s id, which you can pass as portfolioId to other portfolio tools.',
+        endpoint: '/portfolio/list',
+        method: 'GET',
+        parameters: {},
+    },
+
+    // Portfolio Sync Tool Configuration
+    {
+        name: 'sync-portfolio',
+        description:
+            'Trigger a re-sync for an API-connected (wallet or exchange) portfolio, then poll get-portfolio-sync-status until it reports "synced". COST WARNING: pass portfolioId to sync just that portfolio (30 credits). Omitting portfolioId syncs ALL of the user\'s API-connected portfolios at 10x credits — only do that on explicit request.',
+        endpoint: '/portfolio/sync',
+        method: 'PATCH',
+        paramsInQuery: true,
+        parameters: {
+            portfolioId: z
+                .string()
+                .optional()
+                .describe('Sync only this portfolio (from get-portfolio-list or a connect-portfolio-* call). Omit to sync all portfolios (10x credits).'),
+        },
+    },
+
+    // Portfolio Sync Status Tool Configuration
+    {
+        name: 'get-portfolio-sync-status',
+        description:
+            'Get the sync status ("syncing" or "synced") of an API-connected portfolio created via connect-portfolio-wallet/exchange. Use after sync-portfolio to know when data is ready.',
+        endpoint: '/portfolio/status',
+        method: 'GET',
+        parameters: {
+            portfolioId: z.string().describe('The portfolio id (from get-portfolio-list or a connect-portfolio-* call).'),
+        },
+    },
+
     // Portfolio Coins Tool Configuration
     {
         name: 'get-portfolio-coins',
-        description: 'Get a list of portfolio coins with P/L and other data displayed on CoinStats web.',
+        description:
+            'Get a list of portfolio coins with P/L and other data displayed on CoinStats web. Pass shareToken OR portfolioId to target a specific portfolio; with neither it aggregates all API-connected portfolios. If the user wants their own portfolio and has given no shareToken, ask them for one (or offer to connect a wallet/exchange).',
         endpoint: '/portfolio/coins',
         method: 'GET',
+        emptyGuidance: PORTFOLIO_EMPTY_GUIDANCE,
         parameters: {
             shareToken: z
                 .string()
@@ -371,6 +480,14 @@ export const allToolConfigs: ToolConfig<any>[] = [
                 .describe(
                     'Portfolio share token. You can get your share token from the portfolio you want to retrive data from by clicking Share button on CoinStats web app portfolio tracker section - top right.'
                 ),
+            portfolioId: z
+                .string()
+                .optional()
+                .describe('ID of a specific API-connected portfolio (from get-portfolio-list or a connect-portfolio-* call). Provide shareToken OR portfolioId.'),
+            passcode: z
+                .string()
+                .optional()
+                .describe('6-digit passcode for a passcode-protected shared portfolio. Sent as a query parameter.'),
             page: z.number().optional().describe('Page number').default(1),
             limit: z.number().optional().describe('Number of results per page').default(20),
             includeRiskScore: z.string().optional().describe('Include risk score: true or false. Default - false'),
@@ -380,9 +497,11 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // Portfolio Chart Tool Configuration
     {
         name: 'get-portfolio-chart',
-        description: 'Get portfolio performance chart data.',
+        description:
+            'Get portfolio performance chart data. Pass shareToken OR portfolioId to target a specific portfolio; with neither it aggregates all API-connected portfolios. If the user wants their own portfolio and has given no shareToken, ask them for one (or offer to connect a wallet/exchange).',
         endpoint: '/portfolio/chart',
         method: 'GET',
+        emptyGuidance: PORTFOLIO_EMPTY_GUIDANCE,
         parameters: {
             shareToken: z
                 .string()
@@ -390,6 +509,14 @@ export const allToolConfigs: ToolConfig<any>[] = [
                 .describe(
                     'Portfolio share token. You can get your share token from the portfolio you want to retrive data from by clicking Share button on CoinStats web app portfolio tracker section - top right.'
                 ),
+            portfolioId: z
+                .string()
+                .optional()
+                .describe('ID of a specific API-connected portfolio (from get-portfolio-list or a connect-portfolio-* call). Provide shareToken OR portfolioId.'),
+            passcode: z
+                .string()
+                .optional()
+                .describe('6-digit passcode for a passcode-protected shared portfolio. Sent as a query parameter.'),
             type: z.string().describe('One of 24h, 1w, 1m, 3m, 6m, 1y, all'),
         },
     },
@@ -397,9 +524,11 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // Portfolio Transactions Tool Configuration
     {
         name: 'get-portfolio-transactions',
-        description: 'Get a list of portfolio transactions.',
+        description:
+            'Get a list of portfolio transactions. Pass shareToken OR portfolioId to target a specific portfolio; with neither it aggregates all API-connected portfolios. If the user wants their own portfolio and has given no shareToken, ask them for one (or offer to connect a wallet/exchange).',
         endpoint: '/portfolio/transactions',
         method: 'GET',
+        emptyGuidance: PORTFOLIO_EMPTY_GUIDANCE,
         parameters: {
             shareToken: z
                 .string()
@@ -407,6 +536,14 @@ export const allToolConfigs: ToolConfig<any>[] = [
                 .describe(
                     'Portfolio share token. You can get your share token from the portfolio you want to retrive data from by clicking Share button on CoinStats web app portfolio tracker section - top right.'
                 ),
+            portfolioId: z
+                .string()
+                .optional()
+                .describe('ID of a specific API-connected portfolio (from get-portfolio-list or a connect-portfolio-* call). Provide shareToken OR portfolioId.'),
+            passcode: z
+                .string()
+                .optional()
+                .describe('6-digit passcode for a passcode-protected shared portfolio. Sent as a query parameter.'),
             page: z.number().optional().describe('Page number').default(1),
             limit: z.number().optional().describe('Number of results per page').default(20),
             currency: z.string().describe('Currency for price data'),
@@ -414,23 +551,68 @@ export const allToolConfigs: ToolConfig<any>[] = [
         },
     },
 
+    // Connect Portfolio Wallet Tool Configuration
+    {
+        name: 'connect-portfolio-wallet',
+        description:
+            'Connect a wallet address to the account and create a tracked portfolio. Returns a portfolioId you can pass to the other portfolio tools. Creates a real portfolio on the user\'s account and starts a background transaction sync.',
+        endpoint: '/portfolio/wallet',
+        method: 'POST',
+        parameters: {
+            address: z.string().describe('Wallet address to connect.'),
+            connectionId: z
+                .string()
+                .describe('Blockchain network identifier (e.g., "ethereum", "polygon"). Use get-blockchains for supported networks.'),
+            name: z.string().optional().describe('Optional display name for the portfolio.'),
+        },
+    },
+
+    // Connect Portfolio Exchange Tool Configuration
+    {
+        name: 'connect-portfolio-exchange',
+        description:
+            'Connect an exchange account to the account and create a tracked portfolio. Returns a portfolioId you can pass to the other portfolio tools. Creates a real portfolio on the user\'s account and starts a background transaction sync.',
+        endpoint: '/portfolio/exchange',
+        method: 'POST',
+        parameters: {
+            connectionId: z
+                .string()
+                .describe('The exchange connection id (e.g., "binance"). Use get-exchanges for the list of supported exchanges.'),
+            connectionFields: z
+                .object({
+                    apiKey: z.string().optional().describe('Exchange API key'),
+                    apiSecret: z.string().optional().describe('Exchange API secret'),
+                    passphrase: z
+                        .string()
+                        .optional()
+                        .describe('API passphrase — required by some exchanges (e.g. Bitget, OKX, KuCoin)'),
+                })
+                .passthrough()
+                .describe(
+                    'Exchange API credentials. Required fields vary per exchange — call get-exchanges (/exchange/support) for the exact fields a given connectionId needs. Common fields: apiKey, apiSecret, passphrase.'
+                ),
+            name: z.string().optional().describe('Optional display name for the portfolio.'),
+        },
+    },
+
     // Add Portfolio Transaction Tool Configuration
     {
         name: 'add-portfolio-transaction',
-        description: 'Add a transaction to a manual portfolio.',
+        description:
+            'Add a transaction to a manual portfolio. For API-connected (non-manual) portfolios, pass the portfolioId from get-portfolio-list or a connect-portfolio-* call.',
         endpoint: '/portfolio/transaction',
         method: 'POST',
         parameters: {
-            shareToken: z.string().optional().describe('Portfolio share token'),
-            // This endpoint requires a request body which would need to match the AddTransactionDto schema
-            // For simplicity, we're defining a basic structure that matches the expected input
-            coinId: z.string().describe('Coin ID'),
-            type: z.string().describe('Transaction type'),
-            date: z.string().describe('Transaction date in ISO format'),
-            amount: z.number().describe('Transaction amount'),
-            price: z.number().describe('Price per coin'),
-            fee: z.number().optional().describe('Transaction fee'),
-            notes: z.string().optional().describe('Transaction notes'),
+            coinId: z.string().describe('Coin ID from CoinStats (e.g. "bitcoin"). For fiats use the form "FiatCoinUSD".'),
+            count: z.number().describe('Amount of coin. For sell transactions, this should be negative.'),
+            price: z.number().optional().describe('Price of coin in USD at the time of transaction.'),
+            date: z.number().optional().describe('Transaction date in milliseconds (Unix epoch ms). Defaults to now if omitted.'),
+            portfolioId: z
+                .string()
+                .optional()
+                .describe('Target portfolio id. Required when the portfolio is not a manual portfolio.'),
+            currency: z.string().optional().describe('Currency for the price. Default is USD.'),
+            notes: z.string().optional().describe('Transaction notes.'),
         },
     },
 
