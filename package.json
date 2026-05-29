@@ -26,7 +26,6 @@
         "build": "npm i && npm run build:types && npm run build:js && shx chmod +x dist/index.js",
         "build:js": "tsc",
         "build:types": "tsc --emitDeclarationOnly",
-        "test": "node --test test/*.test.mjs",
         "dev": "wrangler dev",
         "deploy": "wrangler deploy",
         "tail": "wrangler tail"

@@ -12,7 +12,6 @@ interface Env {
 const SERVER_NAME = 'coinstats-mcp';
 const SERVER_VERSION = '2.0.0';
 const DEFAULT_PROTOCOL_VERSION = '2025-06-18';
-const CONSUMER_MCP_SCOPES = ['coinstats'];
 
 /**
  * Resolve this MCP server's canonical URL. Prefer the env-configured
@@ -44,24 +43,9 @@ function protectedResourceMetadata(env: Env, request: Request) {
     return {
         resource: resolveResourceUrl(env, request),
         authorization_servers: [env.OAUTH_ISSUER],
-        scopes_supported: CONSUMER_MCP_SCOPES,
+        scopes_supported: ['coinstats'],
         bearer_methods_supported: ['header'],
     };
-}
-
-function withConsumerMcpScopes(body: string): string {
-    try {
-        const metadata = JSON.parse(body);
-        if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
-            return body;
-        }
-        return JSON.stringify({
-            ...metadata,
-            scopes_supported: CONSUMER_MCP_SCOPES,
-        });
-    } catch {
-        return body;
-    }
 }
 
 function unauthorized(env: Env, request: Request, description: string): Response {
@@ -280,9 +264,7 @@ export default {
                     headers: { Accept: 'application/json' },
                     cf: { cacheTtl: 3600, cacheEverything: true },
                 });
-                // Older MCP clients may read this mirror directly and request
-                // every advertised scope, so keep it resource-scoped too.
-                const body = withConsumerMcpScopes(await res.text());
+                const body = await res.text();
                 return new Response(body, {
                     status: res.status,
                     headers: {
