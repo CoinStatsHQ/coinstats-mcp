@@ -12,6 +12,53 @@ export interface ToolConfig<T> {
     basePath?: string;
     parameters: Record<string, ZodType>;
     isLocal?: boolean;
+    /**
+     * Route params to the query string even for body methods (POST/PUT/
+     * PATCH/DELETE). Some CoinStats write endpoints take their inputs as
+     * query params with no JSON body — e.g. `PATCH /portfolio/sync` and the
+     * single-wallet form of `PATCH /wallet/transactions`. Without this the
+     * factory would put them in the body, the API would see no query params,
+     * and the call would silently misbehave (or 400).
+     */
+    paramsInQuery?: boolean;
+    /**
+     * Optional human-facing message returned in place of an empty payload.
+     * Used by the portfolio read tools: when the caller supplies no portfolio
+     * selector (`shareToken`/`portfolioId`) and the API returns nothing, we
+     * surface actionable instructions (share a portfolio, or connect one)
+     * instead of a bare `[]` the model would misreport as "you have none".
+     */
+    emptyGuidance?: string;
+}
+
+/**
+ * Detect an "empty" CoinStats payload so we can swap in `emptyGuidance`.
+ * Covers the shapes the public API returns for an empty portfolio:
+ * `[]`, `{}`, `{ result: [] }`, `{ result: null }`, `{ data: [] }`.
+ * Errors are never treated as empty — their message is more useful.
+ */
+export function isEmptyPayload(result: ToolResult): boolean {
+    const block = result.content?.[0];
+    if (!block || block.isError) return false;
+    let parsed: any;
+    try {
+        parsed = JSON.parse(block.text);
+    } catch {
+        return false;
+    }
+    if (parsed == null) return true;
+    if (Array.isArray(parsed)) return parsed.length === 0;
+    if (typeof parsed === 'object') {
+        for (const key of ['result', 'data']) {
+            if (key in parsed) {
+                const inner = parsed[key];
+                if (inner == null) return true;
+                if (Array.isArray(inner)) return inner.length === 0;
+            }
+        }
+        return Object.keys(parsed).length === 0;
+    }
+    return false;
 }
 
 export interface ToolResult {
@@ -54,11 +101,26 @@ export async function invokeTool(
     const basePath = config.basePath || COINSTATS_API_BASE;
     const method = config.method || 'GET';
     const bodyMethods = ['POST', 'PUT', 'PATCH', 'DELETE'];
+    const sendAsBody = bodyMethods.includes(method.toUpperCase()) && !config.paramsInQuery;
 
-    if (bodyMethods.includes(method.toUpperCase())) {
-        return universalApiHandler(basePath, config.endpoint, method, {}, params, token);
+    const result = sendAsBody
+        ? await universalApiHandler(basePath, config.endpoint, method, {}, params, token)
+        : await universalApiHandler(basePath, config.endpoint, method, params, undefined, token);
+
+    // When a portfolio read is called without a selector and comes back
+    // empty, return actionable guidance instead of the bare empty payload
+    // so the MCP client tells the user how to proceed (share a portfolio,
+    // supply a passcode if protected, or connect a new wallet/exchange).
+    if (
+        config.emptyGuidance &&
+        !params.shareToken &&
+        !params.portfolioId &&
+        isEmptyPayload(result)
+    ) {
+        return { content: [{ type: 'text', text: config.emptyGuidance }] };
     }
-    return universalApiHandler(basePath, config.endpoint, method, params, undefined, token);
+
+    return result;
 }
 
 /**
