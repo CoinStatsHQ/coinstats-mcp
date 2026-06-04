@@ -21,5 +21,14 @@
     },
     "observability": {
         "enabled": true
-    }
+    },
+    // Per-tool usage analytics. Each JSON-RPC message writes one data point
+    // to this dataset; query it with the Analytics Engine SQL API
+    // (`FROM mcp_events`). See `recordEvent` in src/worker.ts for the schema.
+    "analytics_engine_datasets": [
+        {
+            "binding": "MCP_AE",
+            "dataset": "mcp_events"
+        }
+    ]
 }
