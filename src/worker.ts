@@ -7,6 +7,9 @@ interface Env {
     OAUTH_ISSUER: string;
     MCP_RESOURCE_URL: string;
     COINSTATS_API_BASE_URL?: string;
+    // Workers Analytics Engine dataset for per-tool usage metrics. Optional
+    // so the stdio build and `wrangler dev` (no binding) degrade to a no-op.
+    MCP_AE?: AnalyticsEngineDataset;
 }
 
 const SERVER_NAME = 'coinstats-mcp';
@@ -129,6 +132,65 @@ function toolDescriptor(cfg: ToolConfig<any>) {
 }
 
 /**
+ * Stable pseudonymous id for the caller. We never persist the raw bearer —
+ * we SHA-256 it and keep 64 bits of hex. CoinStats OAuth issues a persistent
+ * per-connection API key (the same `PublicApiKey` row across calls), so the
+ * same user+client keeps the same hash — which is what makes "returning
+ * users" countable. Caveats: re-authorising mints a new key (counts as new),
+ * and one human on two clients (Claude + Cursor) shows up as two ids. So this
+ * measures distinct *connections*, a close proxy for users.
+ */
+async function hashUser(token: string): Promise<string> {
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
+    const bytes = new Uint8Array(digest, 0, 8);
+    let hex = '';
+    for (const b of bytes) hex += b.toString(16).padStart(2, '0');
+    return hex;
+}
+
+interface AnalyticsContext {
+    ae?: AnalyticsEngineDataset;
+    user: string;
+    client: string;
+    country: string;
+}
+
+/**
+ * Fire-and-forget one Analytics Engine data point per JSON-RPC message.
+ * Wrapped in try/catch so telemetry can never break request handling, and
+ * a no-op when the binding is absent (stdio / local dev).
+ *
+ * Column names to use in the SQL API (`FROM mcp_events`):
+ *   index1  = user/connection id (hashed bearer)
+ *   blob1   = tool name   ('' unless method is tools/call)
+ *   blob2   = rpc method  ('tools/call' | 'initialize' | 'tools/list' | 'ping' | …)
+ *   blob3   = client      (User-Agent)
+ *   blob4   = outcome     ('ok' | 'error')
+ *   blob5   = country     (Cloudflare edge geo)
+ *   double1 = duration in ms
+ *   double2 = isError     (0 | 1)
+ */
+function recordEvent(actx: AnalyticsContext, msg: any, res: any, durationMs: number): void {
+    if (!actx.ae) return;
+    try {
+        const method = typeof msg?.method === 'string' ? msg.method : 'unknown';
+        // Notifications are high-volume and carry no result — skip them.
+        if (method.startsWith('notifications/')) return;
+        const tool = method === 'tools/call' ? String(msg?.params?.name ?? '') : '';
+        const isError =
+            !!(res && typeof res === 'object' && 'error' in res) ||
+            res?.result?.content?.[0]?.isError === true;
+        actx.ae.writeDataPoint({
+            indexes: [actx.user],
+            blobs: [tool, method, actx.client, isError ? 'error' : 'ok', actx.country],
+            doubles: [Math.round(durationMs), isError ? 1 : 0],
+        });
+    } catch {
+        // Swallow — analytics must never throw into the request path.
+    }
+}
+
+/**
  * Stateless JSON-RPC dispatch. The MCP server keeps no state across
  * requests — each call carries its own bearer and either references the
  * static tool catalog (`tools/list`) or invokes a single tool
@@ -214,8 +276,19 @@ async function handleMcpPost(request: Request, env: Env): Promise<Response> {
 
     // Batch (array of messages) or single message — handle both per JSON-RPC.
     const messages = Array.isArray(body) ? body : [body];
+    const actx: AnalyticsContext = {
+        ae: env.MCP_AE,
+        user: await hashUser(token),
+        client: (request.headers.get('user-agent') || 'unknown').slice(0, 256),
+        country: ((request as any).cf?.country as string) || '',
+    };
     const responses = await Promise.all(
-        messages.map((m) => dispatch(m, token, protocolVersion))
+        messages.map(async (m) => {
+            const started = Date.now();
+            const res = await dispatch(m, token, protocolVersion);
+            recordEvent(actx, m, res, Date.now() - started);
+            return res;
+        })
     );
     const filtered = responses.filter((r) => r !== null);
 
