@@ -42,10 +42,14 @@ function resolveResourceUrl(env: Env, request: Request): string {
  * `invalid_scope: admin scope cannot be combined with other scopes`.
  * Pinning to ['coinstats'] here keeps the consumer MCP's authorization
  * flow correct regardless of what the AS supports globally.
+ *
+ * `resource` reflects the identifier the client probed for — the `/mcp`
+ * endpoint for the path-aware well-known variant (RFC 9728 §3.1), or the
+ * origin for the bare path.
  */
-function protectedResourceMetadata(env: Env, request: Request) {
+function protectedResourceMetadata(env: Env, resource: string) {
     return {
-        resource: resolveResourceUrl(env, request),
+        resource,
         authorization_servers: [env.OAUTH_ISSUER],
         scopes_supported: CONSUMER_MCP_SCOPES,
         bearer_methods_supported: ['header'],
@@ -69,9 +73,16 @@ function withConsumerMcpScopes(body: string): string {
 
 function unauthorized(env: Env, request: Request, description: string): Response {
     const resource = resolveResourceUrl(env, request);
+    // `scope` (RFC 6750 §3) names the scope to request directly in the
+    // challenge, so a client that reads it requests exactly the consumer
+    // scope instead of falling back to the AS metadata's broader
+    // `scopes_supported` and over-requesting `admin` (which cloud rejects:
+    // `admin scope cannot be combined with other scopes`). Mirrors the admin
+    // MCP, whose challenge pins scope="admin".
     const wwwAuth =
         `Bearer error="invalid_token", ` +
         `error_description="${description}", ` +
+        `scope="${CONSUMER_MCP_SCOPES.join(' ')}", ` +
         `resource_metadata="${resource}/.well-known/oauth-protected-resource"`;
     return new Response(
         JSON.stringify({ error: 'invalid_token', error_description: description }),
@@ -330,9 +341,19 @@ export default {
             });
         }
 
-        // RFC 9728 Protected Resource Metadata
-        if (url.pathname === '/.well-known/oauth-protected-resource') {
-            return new Response(JSON.stringify(protectedResourceMetadata(env, request)), {
+        // RFC 9728 Protected Resource Metadata. Clients probe either the bare
+        // well-known path or the path-aware variant that mirrors the MCP route
+        // (`.../oauth-protected-resource/mcp`, RFC 9728 §3.1). Serve both so a
+        // client that builds the URL from the resource path (instead of
+        // following the `resource_metadata` hint) still discovers the pinned
+        // scope rather than falling back to the AS metadata's broader list.
+        if (
+            url.pathname === '/.well-known/oauth-protected-resource' ||
+            url.pathname === '/.well-known/oauth-protected-resource/mcp'
+        ) {
+            const base = resolveResourceUrl(env, request);
+            const resource = url.pathname.endsWith('/mcp') ? `${base}/mcp` : base;
+            return new Response(JSON.stringify(protectedResourceMetadata(env, resource)), {
                 headers: { 'Content-Type': 'application/json', ...corsHeaders() },
             });
         }
