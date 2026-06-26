@@ -2,7 +2,6 @@ import { z, ZodType } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { universalApiHandler } from '../services/request.js';
 import { COINSTATS_API_BASE } from '../config/constants.js';
-import { saveToCache, getFromCache } from '../utils/cache.js';
 
 export interface ToolConfig<T> {
     name: string;
@@ -11,7 +10,6 @@ export interface ToolConfig<T> {
     method?: string;
     basePath?: string;
     parameters: Record<string, ZodType>;
-    isLocal?: boolean;
     /**
      * Route params to the query string even for body methods (POST/PUT/
      * PATCH/DELETE). Some CoinStats write endpoints take their inputs as
@@ -78,26 +76,6 @@ export async function invokeTool(
     params: Record<string, any>,
     token?: string
 ): Promise<ToolResult> {
-    if (config.isLocal) {
-        if (config.name === 'save-share-token') {
-            await saveToCache('shareToken', params.shareToken);
-            return { content: [{ type: 'text', text: 'Share token saved successfully' }] };
-        }
-        if (config.name === 'get-share-token') {
-            const shareToken = await getFromCache('shareToken');
-            return {
-                content: [
-                    {
-                        type: 'text',
-                        text: shareToken ? shareToken : 'No share token found in cache',
-                        isError: !shareToken,
-                    },
-                ],
-            };
-        }
-        return { content: [{ type: 'text', text: 'Operation completed' }] };
-    }
-
     const basePath = config.basePath || COINSTATS_API_BASE;
     const method = config.method || 'GET';
     const bodyMethods = ['POST', 'PUT', 'PATCH', 'DELETE'];
@@ -154,8 +132,7 @@ export function createToolConfig<T>(
     endpoint: string,
     parameters: Record<string, ZodType>,
     method: string = 'GET',
-    basePath?: string,
-    isLocal: boolean = false
+    basePath?: string
 ): ToolConfig<T> {
     return {
         name,
@@ -164,6 +141,5 @@ export function createToolConfig<T>(
         method,
         parameters,
         basePath,
-        isLocal,
     };
 }

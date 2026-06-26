@@ -624,29 +624,4 @@ export const allToolConfigs: ToolConfig<any>[] = [
         method: 'GET',
         parameters: {},
     },
-
-    // Save Share Token Tool Configuration
-    {
-        name: 'save-share-token',
-        description: 'Saves the provided portfolio share token to a local cache for future use across sessions.',
-        // This tool operates locally and does not call an external API endpoint.
-        // The logic to call saveToCache('shareToken', shareToken) will be handled
-        // by the tool execution mechanism based on this tool's name.
-        endpoint: '', // Empty string since this is a local operation
-        method: 'POST', // Using POST since we're saving data
-        parameters: {
-            shareToken: z.string().describe('The portfolio share token to save locally.'),
-        },
-        isLocal: true, // Flag indicating this is a local operation that doesn't use an API
-    },
-
-    // Get Share Token Tool Configuration
-    {
-        name: 'get-share-token',
-        description: 'Retrieves the saved portfolio share token from local cache.',
-        endpoint: '', // Empty string since this is a local operation
-        method: 'GET',
-        parameters: {},
-        isLocal: true, // Flag indicating this is a local operation that doesn't use an API
-    },
 ];
