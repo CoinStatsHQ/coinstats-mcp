@@ -35,7 +35,6 @@ function loadFactory(universalApiHandlerStub) {
             if (specifier === '@modelcontextprotocol/sdk/server/mcp.js') return { McpServer: class {} };
             if (specifier === '../services/request.js') return { universalApiHandler: universalApiHandlerStub };
             if (specifier === '../config/constants.js') return { COINSTATS_API_BASE: 'https://api.example' };
-            if (specifier === '../utils/cache.js') return { saveToCache: async () => {}, getFromCache: async () => undefined };
             throw new Error(`Unexpected test import: ${specifier}`);
         },
     };
