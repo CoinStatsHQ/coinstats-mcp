@@ -15,6 +15,25 @@ const PORTFOLIO_EMPTY_GUIDANCE = [
 ].join('\n');
 
 /**
+ * Shown (in place of an empty `{ result: [] }`) when `get-portfolio-list`
+ * returns nothing. The list only enumerates portfolios created THROUGH this
+ * API; exchange/wallet connections a user added in the CoinStats web or mobile
+ * app are a separate pipeline and never appear here. Without this, the tool
+ * returns a bare empty array that reads as "you have no portfolios" — the exact
+ * confusion behind the recurring "MCP portfolio is empty" reports from users
+ * whose dashboard shows connected exchanges.
+ */
+const PORTFOLIO_LIST_EMPTY_GUIDANCE = [
+    'No API-connected portfolios found. You are authenticated correctly — this list is simply empty.',
+    '',
+    'Why: get-portfolio-list only returns portfolios created THROUGH this API (via connect-portfolio-wallet or connect-portfolio-exchange). Exchange or wallet connections you added in the CoinStats web or mobile app (your dashboard) are managed separately and are NOT listed here — so a dashboard that shows synced exchanges can still return an empty list. Reconnecting the MCP does not change this.',
+    '',
+    'To work with a portfolio you connected in the CoinStats app, choose one:',
+    '1) Read it via a share token — open the portfolio in the CoinStats app, tap Share, and copy the token (the part after /p/ in the share link). Pass it as `shareToken` to get-portfolio-coins / get-portfolio-chart / get-portfolio-transactions. If it is passcode-protected, also pass the 6-digit `passcode`. (A share token reads that portfolio directly; it will not make it appear in this list.)',
+    '2) Create an API-connected portfolio — call `connect-portfolio-wallet` or `connect-portfolio-exchange`. Those DO appear here afterwards and support sync/status, but they are new portfolios and require their own credentials.',
+].join('\n');
+
+/**
  * Accepted `connectionId` / `blockchain` values, per the public-API docs.
  * `*_FORCEALL` applies where the endpoint supports the latency-bounded "all"
  * plus the exhaustive "forceall" (wallet balance & wallet status). `*_ALL`
@@ -431,9 +450,10 @@ export const allToolConfigs: ToolConfig<any>[] = [
     {
         name: 'get-portfolio-list',
         description:
-            'Get a list of all API-connected portfolios (those created via connect-portfolio-wallet or connect-portfolio-exchange). Returns each portfolio\'s id, which you can pass as portfolioId to other portfolio tools.',
+            'Get a list of all API-connected portfolios (those created via connect-portfolio-wallet or connect-portfolio-exchange). Returns each portfolio\'s id, which you can pass as portfolioId to other portfolio tools. Note: portfolios a user connected in the CoinStats web or mobile app (dashboard exchange/wallet syncs) are NOT included here — read those by passing their shareToken to get-portfolio-coins/chart/transactions instead.',
         endpoint: '/portfolio/list',
         method: 'GET',
+        emptyGuidance: PORTFOLIO_LIST_EMPTY_GUIDANCE,
         parameters: {},
     },
 

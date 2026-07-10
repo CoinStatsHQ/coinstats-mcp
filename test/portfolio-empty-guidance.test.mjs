@@ -1,14 +1,17 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import ts from 'typescript';
 
+const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
 const factoryPath = path.join(repoRoot, 'src', 'tools', 'toolFactory.ts');
+const configsPath = path.join(repoRoot, 'src', 'tools', 'toolConfigs.ts');
 
 /**
  * Load toolFactory.ts in an isolated VM with its module imports stubbed.
@@ -40,6 +43,36 @@ function loadFactory(universalApiHandlerStub) {
     };
 
     vm.runInNewContext(compiled, sandbox, { filename: factoryPath });
+    return sandbox.module.exports;
+}
+
+/**
+ * Load the real toolConfigs.ts (with real zod) so tests assert against the
+ * actual tool catalog, not a hand-rolled stand-in. The `ToolConfig` import is
+ * type-only, so transpilation erases it and no toolFactory stub is needed.
+ */
+function loadToolConfigs() {
+    const source = fs.readFileSync(configsPath, 'utf8');
+    const compiled = ts.transpileModule(source, {
+        compilerOptions: {
+            target: ts.ScriptTarget.ES2022,
+            module: ts.ModuleKind.CommonJS,
+            esModuleInterop: true,
+        },
+    }).outputText;
+
+    const moduleExports = {};
+    const sandbox = {
+        console,
+        exports: moduleExports,
+        module: { exports: moduleExports },
+        require(specifier) {
+            if (specifier === 'zod') return require('zod');
+            if (specifier === './toolFactory.js') return {};
+            throw new Error(`Unexpected test import: ${specifier}`);
+        },
+    };
+    vm.runInNewContext(compiled, sandbox, { filename: configsPath });
     return sandbox.module.exports;
 }
 
@@ -131,4 +164,25 @@ test('isEmptyPayload recognizes empty shapes and ignores errors', async () => {
     assert.equal(empty('{"result":[{"a":1}]}'), false);
     assert.equal(empty('Error: boom', true), false);
     assert.equal(empty('not json'), false);
+});
+
+test('get-portfolio-list config wires up empty-list guidance', () => {
+    const { allToolConfigs } = loadToolConfigs();
+    const listCfg = allToolConfigs.find((c) => c.name === 'get-portfolio-list');
+    assert.ok(listCfg, 'get-portfolio-list config exists');
+    assert.equal(typeof listCfg.emptyGuidance, 'string');
+    // The guidance must steer the user to the two real escape hatches, since
+    // dashboard-connected portfolios never appear in this list.
+    assert.match(listCfg.emptyGuidance, /shareToken/);
+    assert.match(listCfg.emptyGuidance, /connect-portfolio-/);
+});
+
+test('real get-portfolio-list returns guidance (not bare []) on an empty list', async () => {
+    const { allToolConfigs } = loadToolConfigs();
+    const listCfg = allToolConfigs.find((c) => c.name === 'get-portfolio-list');
+    // Drive the ACTUAL config through invokeTool with an empty API payload —
+    // this is the exact "{"result":[]}" a dashboard-only account gets back.
+    const { invokeTool } = loadFactory(stubReturning({ result: [] }));
+    const res = await invokeTool(listCfg, {}, 'tok');
+    assert.equal(res.content[0].text, listCfg.emptyGuidance);
 });
