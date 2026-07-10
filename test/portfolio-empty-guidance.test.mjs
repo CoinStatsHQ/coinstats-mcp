@@ -180,6 +180,7 @@ test('get-portfolio-list config wires up empty-list guidance', () => {
 test('real get-portfolio-list returns guidance (not bare []) on an empty list', async () => {
     const { allToolConfigs } = loadToolConfigs();
     const listCfg = allToolConfigs.find((c) => c.name === 'get-portfolio-list');
+    assert.ok(listCfg, 'get-portfolio-list config exists');
     // Drive the ACTUAL config through invokeTool with an empty API payload —
     // this is the exact "{"result":[]}" a dashboard-only account gets back.
     const { invokeTool } = loadFactory(stubReturning({ result: [] }));

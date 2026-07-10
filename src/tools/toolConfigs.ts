@@ -450,7 +450,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     {
         name: 'get-portfolio-list',
         description:
-            'Get a list of all API-connected portfolios (those created via connect-portfolio-wallet or connect-portfolio-exchange). Returns each portfolio\'s id, which you can pass as portfolioId to other portfolio tools. Note: portfolios a user connected in the CoinStats web or mobile app (dashboard exchange/wallet syncs) are NOT included here — read those by passing their shareToken to get-portfolio-coins/chart/transactions instead.',
+            'Get a list of all API-connected portfolios (those created via connect-portfolio-wallet or connect-portfolio-exchange). Returns each portfolio\'s id, which you can pass as portfolioId to other portfolio tools. Note: portfolios a user connected in the CoinStats web or mobile app (dashboard exchange/wallet syncs) are NOT included here — read those by passing their shareToken to get-portfolio-coins, get-portfolio-chart, or get-portfolio-transactions instead.',
         endpoint: '/portfolio/list',
         method: 'GET',
         emptyGuidance: PORTFOLIO_LIST_EMPTY_GUIDANCE,
