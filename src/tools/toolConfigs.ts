@@ -25,6 +25,28 @@ const WALLET_NETWORK_VALUES_FORCEALL =
 const WALLET_NETWORK_VALUES_ALL =
     'Accepts a single value (e.g. "ethereum"), a comma-separated list ("ethereum,polygon"), or "all" for every connection.';
 
+const PROFIT_LOSS_RANGES = ['24h', '1w', '1m', '3m', '6m', '1y', 'all'] as const;
+const PROFIT_LOSS_INTERVALS = ['hourly', 'daily', 'weekly', 'monthly', 'yearly'] as const;
+
+const profitLossHistoryParameters = () => ({
+    range: z
+        .enum(PROFIT_LOSS_RANGES)
+        .optional()
+        .describe('Preset time range. Provide range OR both from and to, never both.'),
+    from: z
+        .string()
+        .optional()
+        .describe('Inclusive custom-range start as YYYY-MM-DD or an ISO timestamp with timezone. Must be paired with to and used without range.'),
+    to: z
+        .string()
+        .optional()
+        .describe('Exclusive custom-range end as YYYY-MM-DD or an ISO timestamp with timezone. Must be paired with from and used without range.'),
+    interval: z
+        .enum(PROFIT_LOSS_INTERVALS)
+        .describe('Chart bucket interval. Hourly is valid only for 24h or a custom window within the latest 24 hours.'),
+    currency: z.string().optional().describe('Currency for P&L values.').default('USD'),
+});
+
 // Collection of all tool configurations
 export const allToolConfigs: ToolConfig<any>[] = [
     // Coin List Tool Configuration
@@ -258,6 +280,27 @@ export const allToolConfigs: ToolConfig<any>[] = [
         },
     },
 
+    // Wallet Profit/Loss History Tool Configuration
+    {
+        name: 'get-wallet-pl-history',
+        description:
+            'Get cash-flow-adjusted historical P&L for a wallet across one or more synchronized networks. Use transactions-sync first and poll get-wallet-sync-status when fresh history is required. COST WARNING: 25 credits per requested network; connectionId/blockchain="all" costs 250 credits.',
+        endpoint: '/wallet/pl/history',
+        method: 'GET',
+        parameters: {
+            address: z.string().describe('Wallet address whose synchronized history should be used.'),
+            connectionId: z
+                .string()
+                .optional()
+                .describe(`Connection id, comma-separated connection ids, or "all". Provide connectionId OR blockchain; connectionId takes precedence. ${WALLET_NETWORK_VALUES_ALL}`),
+            blockchain: z
+                .string()
+                .optional()
+                .describe(`Blockchain id, comma-separated blockchain ids, or "all". Used only when connectionId is omitted. ${WALLET_NETWORK_VALUES_ALL}`),
+            ...profitLossHistoryParameters(),
+        },
+    },
+
     // Wallet Transactions Sync Tool Configuration
     {
         name: 'transactions-sync',
@@ -359,6 +402,21 @@ export const allToolConfigs: ToolConfig<any>[] = [
             to: z.string().optional().describe('End date in ISO 8601 format'),
             currency: z.string().optional().describe('Currency for price data').default('USD'),
             types: z.string().optional().describe('Transaction types, comma separated (deposit,withdraw,approve,executed,balance,fee)'),
+        },
+    },
+
+    // Exchange Profit/Loss History Tool Configuration
+    {
+        name: 'get-exchange-pl-history',
+        description:
+            'Get cash-flow-adjusted historical P&L for an owned exchange portfolio. Deposits and withdrawals are removed from investment performance. Costs 25 credits per request.',
+        endpoint: '/exchange/pl/history',
+        method: 'GET',
+        parameters: {
+            portfolioId: z
+                .string()
+                .describe('Owned exchange portfolio id from get-exchange-balance or get-portfolio-list.'),
+            ...profitLossHistoryParameters(),
         },
     },
 
@@ -518,6 +576,31 @@ export const allToolConfigs: ToolConfig<any>[] = [
                 .optional()
                 .describe('6-digit passcode for a passcode-protected shared portfolio. Sent as a query parameter.'),
             type: z.string().describe('One of 24h, 1w, 1m, 3m, 6m, 1y, all'),
+        },
+    },
+
+    // Portfolio Profit/Loss History Tool Configuration
+    {
+        name: 'get-portfolio-pl-history',
+        description:
+            'Get cash-flow-adjusted historical P&L for one API-connected portfolio, all owned API-connected portfolios, or a shared portfolio. Deposits and withdrawals are removed from investment performance. Costs 25 credits per request.',
+        endpoint: '/portfolio/pl/history',
+        method: 'GET',
+        emptyGuidance: PORTFOLIO_EMPTY_GUIDANCE,
+        parameters: {
+            portfolioId: z
+                .string()
+                .optional()
+                .describe('Owned API-connected portfolio id. Omit to aggregate all owned API-connected portfolios; mutually exclusive with shareToken.'),
+            shareToken: z
+                .string()
+                .optional()
+                .describe('Shared CoinStats portfolio token. Mutually exclusive with portfolioId.'),
+            passcode: z
+                .string()
+                .optional()
+                .describe('6-digit passcode for a passcode-protected shared portfolio.'),
+            ...profitLossHistoryParameters(),
         },
     },
 
