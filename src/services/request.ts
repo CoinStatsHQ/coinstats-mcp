@@ -78,7 +78,9 @@ export async function universalApiHandler<T>(
                 const paramName = match.slice(1, -1);
 
                 if (processedParams[paramName] !== undefined) {
-                    processedEndpoint = processedEndpoint.replace(match, processedParams[paramName]);
+                    // Encode so values can't inject `?`, `&`, `/`, `#`; replacer fn avoids `$&`-style expansion.
+                    const encoded = encodeURIComponent(String(processedParams[paramName]));
+                    processedEndpoint = processedEndpoint.replace(match, () => encoded);
                     delete processedParams[paramName];
                 } else {
                     throw new Error(`Required path parameter '${paramName}' is missing`);

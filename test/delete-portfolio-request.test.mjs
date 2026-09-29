@@ -50,3 +50,36 @@ test('delete-portfolio substitutes portfolioId into the path and sends no query 
     assert.equal(calls[0].options.body, undefined);
     assert.equal(calls[0].options.headers['X-API-KEY'], 'tok');
 });
+
+test('path params are URL-encoded so they cannot inject query params or path segments', async () => {
+    const calls = [];
+    const { universalApiHandler } = loadRequest(async (url, options) => {
+        calls.push({ url, options });
+        return { ok: true, json: async () => ({}) };
+    });
+
+    await universalApiHandler(
+        'https://api.example',
+        '/portfolio/{portfolioId}',
+        'DELETE',
+        { portfolioId: 'VICTIM?userId=VICTIM_UID&x=/../#' },
+        undefined,
+        'tok'
+    );
+
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, 'https://api.example/portfolio/VICTIM%3FuserId%3DVICTIM_UID%26x%3D%2F..%2F%23');
+});
+
+test('path param substitution does not expand $& / $` replacement patterns', async () => {
+    const calls = [];
+    const { universalApiHandler } = loadRequest(async (url, options) => {
+        calls.push({ url, options });
+        return { ok: true, json: async () => ({}) };
+    });
+
+    await universalApiHandler('https://api.example', '/coins/{coinId}', 'GET', { coinId: "$&$`$'" }, undefined, 'tok');
+
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, `https://api.example/coins/${encodeURIComponent("$&$`$'")}`);
+});
