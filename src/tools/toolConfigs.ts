@@ -7,10 +7,10 @@ import { ToolConfig } from './toolFactory.js';
  * a concrete next step instead of a misleading "you have no holdings".
  */
 const PORTFOLIO_EMPTY_GUIDANCE = [
-    'No portfolio data found. You are authenticated, but no portfolio was specified and this account has no API-connected portfolios yet.',
+    'No portfolio data found. You are authenticated, but no portfolio was specified and this account has no holdings yet.',
     '',
     'To continue, choose one:',
-    '1) View an existing CoinStats portfolio — open the CoinStats app, go to the portfolio, tap Share, and copy the token (the part after /p/ in the share link). Pass it as `shareToken`. If that portfolio is passcode-protected, also pass its 6-digit `passcode`.',
+    '1) Call `get-portfolio-list` to see every portfolio on the account and pass one as `portfolioId`.',
     '2) Set up a new portfolio here — call `connect-portfolio-wallet` (with a wallet address) or `connect-portfolio-exchange` (with exchange API credentials). Once connected, retry and your holdings will appear automatically.',
 ].join('\n');
 
@@ -489,7 +489,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     {
         name: 'get-portfolio-list',
         description:
-            'Get a list of all API-connected portfolios (those created via connect-portfolio-wallet or connect-portfolio-exchange). Returns each portfolio\'s id, which you can pass as portfolioId to other portfolio tools.',
+            'List every portfolio on the user\'s CoinStats account — ones built in the app and ones created via connect-portfolio-wallet/exchange. Returns portfolioId, portfolioName and portfolioType (manual, exchange, wallet, ...). Call this first and pass portfolioId to the other portfolio tools; transactions can be added only to manual portfolios.',
         endpoint: '/portfolio/list',
         method: 'GET',
         parameters: {},
@@ -499,7 +499,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     {
         name: 'sync-portfolio',
         description:
-            'Trigger a re-sync for an API-connected (wallet or exchange) portfolio, then poll get-portfolio-sync-status until it reports "synced". COST WARNING: pass portfolioId to sync just that portfolio (30 credits). Omitting portfolioId syncs ALL of the user\'s API-connected portfolios at 10x credits — only do that on explicit request.',
+            'Trigger a re-sync for one of the user\'s wallet or exchange portfolios, then poll get-portfolio-sync-status until it reports "synced". COST WARNING: pass portfolioId to sync just that portfolio (30 credits). Manual portfolios cannot be synced. Omitting portfolioId syncs ALL of the user\'s non-manual portfolios at 10x credits — only do that on explicit request.',
         endpoint: '/portfolio/sync',
         method: 'PATCH',
         paramsInQuery: true,
@@ -515,7 +515,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     {
         name: 'get-portfolio-sync-status',
         description:
-            'Get the sync status ("syncing" or "synced") of an API-connected portfolio created via connect-portfolio-wallet/exchange. Use after sync-portfolio to know when data is ready.',
+            'Get the sync status ("syncing" or "synced") of one of the user\'s portfolios. Use after sync-portfolio to know when data is ready.',
         endpoint: '/portfolio/status',
         method: 'GET',
         parameters: {
@@ -527,25 +527,15 @@ export const allToolConfigs: ToolConfig<any>[] = [
     {
         name: 'get-portfolio-coins',
         description:
-            'Get a list of portfolio coins with P/L and other data displayed on CoinStats web. Pass shareToken OR portfolioId to target a specific portfolio; with neither it aggregates all API-connected portfolios. If the user wants their own portfolio and has given no shareToken, ask them for one (or offer to connect a wallet/exchange).',
+            'Get a list of portfolio coins with P/L and other data displayed on CoinStats web. Pass portfolioId (from get-portfolio-list) to target one portfolio; omit it to aggregate all of the user\'s portfolios.',
         endpoint: '/portfolio/coins',
         method: 'GET',
         emptyGuidance: PORTFOLIO_EMPTY_GUIDANCE,
         parameters: {
-            shareToken: z
-                .string()
-                .optional()
-                .describe(
-                    'Portfolio share token. You can get your share token from the portfolio you want to retrive data from by clicking Share button on CoinStats web app portfolio tracker section - top right.'
-                ),
             portfolioId: z
                 .string()
                 .optional()
-                .describe('ID of a specific API-connected portfolio (from get-portfolio-list or a connect-portfolio-* call). Provide shareToken OR portfolioId.'),
-            passcode: z
-                .string()
-                .optional()
-                .describe('6-digit passcode for a passcode-protected shared portfolio. Sent as a query parameter.'),
+                .describe('Portfolio id from get-portfolio-list. Omit to aggregate all of the user\'s portfolios.'),
             page: z.number().optional().describe('Page number').default(1),
             limit: z.number().optional().describe('Number of results per page').default(20),
             includeRiskScore: z.string().optional().describe('Include risk score: true or false. Default - false'),
@@ -556,25 +546,15 @@ export const allToolConfigs: ToolConfig<any>[] = [
     {
         name: 'get-portfolio-chart',
         description:
-            'Get portfolio performance chart data. Pass shareToken OR portfolioId to target a specific portfolio; with neither it aggregates all API-connected portfolios. If the user wants their own portfolio and has given no shareToken, ask them for one (or offer to connect a wallet/exchange).',
+            'Get portfolio performance chart data. Pass portfolioId (from get-portfolio-list) to target one portfolio; omit it to aggregate all of the user\'s portfolios.',
         endpoint: '/portfolio/chart',
         method: 'GET',
         emptyGuidance: PORTFOLIO_EMPTY_GUIDANCE,
         parameters: {
-            shareToken: z
-                .string()
-                .optional()
-                .describe(
-                    'Portfolio share token. You can get your share token from the portfolio you want to retrive data from by clicking Share button on CoinStats web app portfolio tracker section - top right.'
-                ),
             portfolioId: z
                 .string()
                 .optional()
-                .describe('ID of a specific API-connected portfolio (from get-portfolio-list or a connect-portfolio-* call). Provide shareToken OR portfolioId.'),
-            passcode: z
-                .string()
-                .optional()
-                .describe('6-digit passcode for a passcode-protected shared portfolio. Sent as a query parameter.'),
+                .describe('Portfolio id from get-portfolio-list. Omit to aggregate all of the user\'s portfolios.'),
             type: z.string().describe('One of 24h, 1w, 1m, 3m, 6m, 1y, all'),
         },
     },
@@ -583,7 +563,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     {
         name: 'get-portfolio-pl-history',
         description:
-            'Get cash-flow-adjusted historical P&L for one API-connected portfolio, all owned API-connected portfolios, or a shared portfolio. Deposits and withdrawals are removed from investment performance. Costs 25 credits per request.',
+            'Get cash-flow-adjusted historical P&L for one portfolio or all of the user\'s portfolios. Deposits and withdrawals are removed from investment performance. Costs 25 credits per request.',
         endpoint: '/portfolio/pl/history',
         method: 'GET',
         emptyGuidance: PORTFOLIO_EMPTY_GUIDANCE,
@@ -591,15 +571,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
             portfolioId: z
                 .string()
                 .optional()
-                .describe('Owned API-connected portfolio id. Omit to aggregate all owned API-connected portfolios; mutually exclusive with shareToken.'),
-            shareToken: z
-                .string()
-                .optional()
-                .describe('Shared CoinStats portfolio token. Mutually exclusive with portfolioId.'),
-            passcode: z
-                .string()
-                .optional()
-                .describe('6-digit passcode for a passcode-protected shared portfolio.'),
+                .describe('Portfolio id from get-portfolio-list. Omit to aggregate all of the user\'s portfolios.'),
             ...profitLossHistoryParameters(),
         },
     },
@@ -608,25 +580,15 @@ export const allToolConfigs: ToolConfig<any>[] = [
     {
         name: 'get-portfolio-transactions',
         description:
-            'Get a list of portfolio transactions. Pass shareToken OR portfolioId to target a specific portfolio; with neither it aggregates all API-connected portfolios. If the user wants their own portfolio and has given no shareToken, ask them for one (or offer to connect a wallet/exchange).',
+            'Get a list of portfolio transactions. Pass portfolioId (from get-portfolio-list) to target one portfolio; omit it to aggregate all of the user\'s portfolios.',
         endpoint: '/portfolio/transactions',
         method: 'GET',
         emptyGuidance: PORTFOLIO_EMPTY_GUIDANCE,
         parameters: {
-            shareToken: z
-                .string()
-                .optional()
-                .describe(
-                    'Portfolio share token. You can get your share token from the portfolio you want to retrive data from by clicking Share button on CoinStats web app portfolio tracker section - top right.'
-                ),
             portfolioId: z
                 .string()
                 .optional()
-                .describe('ID of a specific API-connected portfolio (from get-portfolio-list or a connect-portfolio-* call). Provide shareToken OR portfolioId.'),
-            passcode: z
-                .string()
-                .optional()
-                .describe('6-digit passcode for a passcode-protected shared portfolio. Sent as a query parameter.'),
+                .describe('Portfolio id from get-portfolio-list. Omit to aggregate all of the user\'s portfolios.'),
             page: z.number().optional().describe('Page number').default(1),
             limit: z.number().optional().describe('Number of results per page').default(20),
             currency: z.string().describe('Currency for price data'),
@@ -682,7 +644,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     {
         name: 'add-portfolio-transaction',
         description:
-            'Add a transaction to a manual portfolio. For API-connected (non-manual) portfolios, pass the portfolioId from get-portfolio-list or a connect-portfolio-* call.',
+            'Add a buy/sell transaction to one of the user\'s manual portfolios. portfolioId is required — call get-portfolio-list and pick a portfolio with portfolioType "manual"; if more than one fits, ask the user which one. Wallet/exchange portfolios sync automatically and cannot take manual transactions.',
         endpoint: '/portfolio/transaction',
         method: 'POST',
         parameters: {
@@ -690,12 +652,22 @@ export const allToolConfigs: ToolConfig<any>[] = [
             count: z.number().describe('Amount of coin. For sell transactions, this should be negative.'),
             price: z.number().optional().describe('Price of coin in USD at the time of transaction.'),
             date: z.number().optional().describe('Transaction date in milliseconds (Unix epoch ms). Defaults to now if omitted.'),
-            portfolioId: z
-                .string()
-                .optional()
-                .describe('Target portfolio id. Required when the portfolio is not a manual portfolio.'),
+            portfolioId: z.string().describe('Target manual portfolio id from get-portfolio-list.'),
             currency: z.string().optional().describe('Currency for the price. Default is USD.'),
             notes: z.string().optional().describe('Transaction notes.'),
+        },
+    },
+
+    // Delete Portfolio Tool Configuration
+    {
+        name: 'delete-portfolio',
+        description:
+            'Permanently delete one of the user\'s portfolios, including all its transactions; deleting a portfolio with portfolioType "parent" also deletes every linked child account. Irreversible — always name the exact portfolio (from get-portfolio-list) and get explicit user confirmation before calling.',
+        endpoint: '/portfolio/{portfolioId}',
+        method: 'DELETE',
+        paramsInQuery: true,
+        parameters: {
+            portfolioId: z.string().describe('Id of the portfolio to delete (from get-portfolio-list).'),
         },
     },
 
