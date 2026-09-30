@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/coinstatshq-coinstats-mcp-badge.png)](https://mseep.ai/app/coinstatshq-coinstats-mcp)
+
 # CoinStats MCP Server
 
 Hosted [Model Context Protocol](https://modelcontextprotocol.io/) server for the CoinStats API. Lets AI agents (Claude, Cursor, Codex, ChatGPT — anything that speaks MCP) read and act on the same crypto data the CoinStats apps use, over a single OAuth-protected HTTPS URL.
