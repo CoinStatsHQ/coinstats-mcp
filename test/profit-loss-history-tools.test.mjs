@@ -90,7 +90,7 @@ test('historical P&L tools accept preset and custom calendar ranges', () => {
     }
 });
 
-test('wallet history exposes network selectors and portfolio history supports shared portfolios', () => {
+test('wallet history exposes network selectors and portfolio history targets portfolios by id', () => {
     const configs = loadToolConfigs();
     const wallet = configs.find((candidate) => candidate.name === 'get-wallet-pl-history');
     const portfolio = configs.find((candidate) => candidate.name === 'get-portfolio-pl-history');
@@ -98,7 +98,33 @@ test('wallet history exposes network selectors and portfolio history supports sh
     assert.ok(wallet.parameters.connectionId);
     assert.ok(wallet.parameters.blockchain);
     assert.ok(portfolio.parameters.portfolioId);
-    assert.ok(portfolio.parameters.shareToken);
-    assert.ok(portfolio.parameters.passcode);
     assert.equal(portfolio.emptyGuidance.length > 0, true);
+});
+
+test('no portfolio tool exposes shareToken or passcode — the API key covers the whole account', () => {
+    const configs = loadToolConfigs();
+    for (const config of configs.filter((candidate) => candidate.endpoint.startsWith('/portfolio'))) {
+        assert.equal(config.parameters.shareToken, undefined, `${config.name} still exposes shareToken`);
+        assert.equal(config.parameters.passcode, undefined, `${config.name} still exposes passcode`);
+    }
+});
+
+test('add-portfolio-transaction requires portfolioId so writes never land in an implicit portfolio', () => {
+    const { z } = require('zod');
+    const configs = loadToolConfigs();
+    const add = configs.find((candidate) => candidate.name === 'add-portfolio-transaction');
+    const schema = z.object(add.parameters);
+
+    assert.equal(schema.safeParse({ coinId: 'bitcoin', count: 1 }).success, false);
+    assert.equal(schema.safeParse({ coinId: 'bitcoin', count: 1, portfolioId: 'p1' }).success, true);
+});
+
+test('delete-portfolio sends portfolioId as a path parameter', () => {
+    const configs = loadToolConfigs();
+    const del = configs.find((candidate) => candidate.name === 'delete-portfolio');
+
+    assert.equal(del.method, 'DELETE');
+    assert.equal(del.endpoint, '/portfolio/{portfolioId}');
+    assert.equal(del.paramsInQuery, true);
+    assert.ok(del.parameters.portfolioId);
 });

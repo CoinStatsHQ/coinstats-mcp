@@ -22,8 +22,8 @@ export interface ToolConfig<T> {
     /**
      * Optional human-facing message returned in place of an empty payload.
      * Used by the portfolio read tools: when the caller supplies no portfolio
-     * selector (`shareToken`/`portfolioId`) and the API returns nothing, we
-     * surface actionable instructions (share a portfolio, or connect one)
+     * selector (`portfolioId`) and the API returns nothing, we
+     * surface actionable instructions (pick a portfolio, or connect one)
      * instead of a bare `[]` the model would misreport as "you have none".
      */
     emptyGuidance?: string;
@@ -87,11 +87,10 @@ export async function invokeTool(
 
     // When a portfolio read is called without a selector and comes back
     // empty, return actionable guidance instead of the bare empty payload
-    // so the MCP client tells the user how to proceed (share a portfolio,
-    // supply a passcode if protected, or connect a new wallet/exchange).
+    // so the MCP client tells the user how to proceed (pick a portfolio
+    // from get-portfolio-list, or connect a new wallet/exchange).
     if (
         config.emptyGuidance &&
-        !params.shareToken &&
         !params.portfolioId &&
         isEmptyPayload(result)
     ) {

@@ -43,7 +43,7 @@ function loadFactory(universalApiHandlerStub) {
     return sandbox.module.exports;
 }
 
-const GUIDANCE = 'Provide a shareToken or connect a portfolio.';
+const GUIDANCE = 'Pick a portfolio or connect one.';
 const readConfig = {
     name: 'get-portfolio-coins',
     description: 'x',
@@ -72,8 +72,6 @@ test('non-empty payload returns data, not guidance', async () => {
 
 test('empty payload but a selector was provided returns data, not guidance', async () => {
     const { invokeTool } = loadFactory(stubReturning({ result: [] }));
-    const withShare = await invokeTool(readConfig, { shareToken: 'abc' }, 'tok');
-    assert.equal(withShare.content[0].text, JSON.stringify({ result: [] }));
     const withId = await invokeTool(readConfig, { portfolioId: 'p1' }, 'tok');
     assert.equal(withId.content[0].text, JSON.stringify({ result: [] }));
 });
