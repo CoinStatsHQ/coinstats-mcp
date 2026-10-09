@@ -1,6 +1,27 @@
 import { COINSTATS_API_KEY } from '../config/constants.js';
 
 /**
+ * Non-2xx response from the CoinStats public API.
+ *
+ * `isInvalidToken` is true only for public-api-v2's `InvalidApiKeyException`
+ * (401 + "Your API Key is invalid…"), i.e. the caller's key no longer exists
+ * — revoked, or deleted by a password reset / log-out-everywhere. That is the
+ * one case where the OAuth client should re-authorise. Other 401s can be
+ * passed through from downstream services (portfolio / exchange / wallet)
+ * and 402/403/406/429 are account-state errors: re-auth returns the same key
+ * and fails again, so those must stay ordinary tool errors.
+ */
+export class CoinStatsApiError extends Error {
+    name = 'CoinStatsApiError';
+    readonly isInvalidToken: boolean;
+
+    constructor(readonly status: number, readonly body: string) {
+        super(`CoinStats API error ${status}: ${body}`);
+        this.isInvalidToken = status === 401 && /API Key is invalid/i.test(body);
+    }
+}
+
+/**
  * Make a CoinStats API request, authenticating via the supplied token.
  *
  * The Worker entry point passes the per-request OAuth bearer it pulled
@@ -44,7 +65,7 @@ export async function makeRequestCsApi<T>(
     const response = await fetch(urlWithParams, options);
     if (!response.ok) {
         const errorBody = await response.text();
-        throw new Error(`CoinStats API error ${response.status}: ${errorBody || response.statusText}`);
+        throw new CoinStatsApiError(response.status, errorBody || response.statusText);
     }
     return (await response.json()) as T;
 }
@@ -66,6 +87,7 @@ export async function universalApiHandler<T>(
     token?: string
 ): Promise<{
     content: Array<{ type: 'text'; text: string; isError?: boolean }>;
+    isError?: boolean;
 }> {
     try {
         let processedEndpoint = endpoint;
@@ -104,6 +126,7 @@ export async function universalApiHandler<T>(
         if (!data) {
             return {
                 content: [{ type: 'text', text: 'Something went wrong', isError: true }],
+                isError: true,
             };
         }
 
@@ -116,9 +139,15 @@ export async function universalApiHandler<T>(
             ],
         };
     } catch (error) {
+        // A dead token is not a tool error — let it reach the transport so
+        // the Worker can answer HTTP 401 and the client re-runs OAuth.
+        if (error instanceof CoinStatsApiError && error.isInvalidToken) throw error;
         const message = error instanceof Error ? error.message : String(error);
+        // `isError` belongs on the CallToolResult (MCP spec); the content-block
+        // flag is kept for `isEmptyPayload` and older readers.
         return {
             content: [{ type: 'text', text: `Error: ${message}`, isError: true }],
+            isError: true,
         };
     }
 }

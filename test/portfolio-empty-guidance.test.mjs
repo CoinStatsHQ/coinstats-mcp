@@ -129,4 +129,19 @@ test('isEmptyPayload recognizes empty shapes and ignores errors', async () => {
     assert.equal(empty('{"result":[{"a":1}]}'), false);
     assert.equal(empty('Error: boom', true), false);
     assert.equal(empty('not json'), false);
+    // Result-level isError (MCP spec placement) is never "empty" either.
+    assert.equal(isEmptyPayload({ isError: true, content: [{ type: 'text', text: '[]' }] }), false);
+});
+
+test('a dead-token error from the network layer is not swallowed into guidance', async () => {
+    const authErr = Object.assign(new Error('CoinStats API error 401'), {
+        name: 'CoinStatsApiError',
+        status: 401,
+        isInvalidToken: true,
+    });
+    const { invokeTool } = loadFactory(async () => {
+        throw authErr;
+    });
+    const cfg = { name: 'get-portfolio-coins', description: 'x', endpoint: '/portfolio/coins', parameters: {}, emptyGuidance: 'GUIDE' };
+    await assert.rejects(() => invokeTool(cfg, {}, 'tok'), (err) => err === authErr);
 });

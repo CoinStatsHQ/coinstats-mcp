@@ -122,6 +122,16 @@ function jsonRpcError(id: any, code: number, message: string) {
     };
 }
 
+/**
+ * True when a tool call failed because public-api-v2 no longer recognises
+ * the bearer (revoked grant, or wiped by password reset / log-out-everywhere).
+ * Duck-typed on `CoinStatsApiError` from services/request.ts rather than
+ * `instanceof`, so this file doesn't import request.ts directly.
+ */
+function isInvalidTokenError(err: any): boolean {
+    return err?.name === 'CoinStatsApiError' && err?.isInvalidToken === true;
+}
+
 function toolDescriptor(cfg: ToolConfig<any>) {
     const schema = zodToJsonSchema(z.object(cfg.parameters), {
         target: 'jsonSchema7',
@@ -147,9 +157,13 @@ function toolDescriptor(cfg: ToolConfig<any>) {
  * we SHA-256 it and keep 64 bits of hex. CoinStats OAuth issues a persistent
  * per-connection API key (the same `PublicApiKey` row across calls), so the
  * same user+client keeps the same hash — which is what makes "returning
- * users" countable. Caveats: re-authorising mints a new key (counts as new),
- * and one human on two clients (Claude + Cursor) shows up as two ids. So this
- * measures distinct *connections*, a close proxy for users.
+ * users" countable. Re-authorising from the same DCR client returns the same
+ * key (cloud's `generateForOAuth` is idempotent on user+client). A new id
+ * appears only when a client re-registers via DCR (e.g. connector removed and
+ * re-added) or after cloud revoked the grant (password reset / log out
+ * everywhere) and the next auth minted a fresh key. One human on two clients
+ * (Claude + Cursor) shows up as two ids. So this measures distinct
+ * *connections*, a close proxy for users.
  */
 async function hashUser(token: string): Promise<string> {
     const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
@@ -190,6 +204,7 @@ function recordEvent(actx: AnalyticsContext, msg: any, res: any, durationMs: num
         const tool = method === 'tools/call' ? String(msg?.params?.name ?? '') : '';
         const isError =
             !!(res && typeof res === 'object' && 'error' in res) ||
+            res?.result?.isError === true ||
             res?.result?.content?.[0]?.isError === true;
         actx.ae.writeDataPoint({
             indexes: [actx.user],
@@ -261,6 +276,8 @@ async function dispatch(
             const result = await invokeTool(cfg, args, token);
             return { jsonrpc: '2.0', id, result };
         } catch (err: any) {
+            // Surfaced as HTTP 401 by handleMcpPost, not as a JSON-RPC error.
+            if (isInvalidTokenError(err)) throw err;
             return jsonRpcError(id, -32000, `Tool error: ${err?.message || String(err)}`);
         }
     }
@@ -293,14 +310,30 @@ async function handleMcpPost(request: Request, env: Env): Promise<Response> {
         client: (request.headers.get('user-agent') || 'unknown').slice(0, 256),
         country: ((request as any).cf?.country as string) || '',
     };
-    const responses = await Promise.all(
-        messages.map(async (m) => {
-            const started = Date.now();
-            const res = await dispatch(m, token, protocolVersion);
-            recordEvent(actx, m, res, Date.now() - started);
-            return res;
-        })
-    );
+    let responses: any[];
+    try {
+        responses = await Promise.all(
+            messages.map(async (m) => {
+                const started = Date.now();
+                try {
+                    const res = await dispatch(m, token, protocolVersion);
+                    recordEvent(actx, m, res, Date.now() - started);
+                    return res;
+                } catch (err) {
+                    recordEvent(actx, m, { error: {} }, Date.now() - started);
+                    throw err;
+                }
+            })
+        );
+    } catch (err) {
+        // The token is dead: answer 401 + WWW-Authenticate so the MCP client
+        // re-runs OAuth instead of showing tool errors forever. Every message
+        // in a batch shares this bearer, so the whole response is 401.
+        if (isInvalidTokenError(err)) {
+            return unauthorized(env, request, 'Access token is invalid or has been revoked');
+        }
+        throw err;
+    }
     const filtered = responses.filter((r) => r !== null);
 
     // 202 Accepted for pure-notification batches, 200 + body otherwise.
