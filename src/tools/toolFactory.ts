@@ -37,7 +37,7 @@ export interface ToolConfig<T> {
  */
 export function isEmptyPayload(result: ToolResult): boolean {
     const block = result.content?.[0];
-    if (!block || block.isError) return false;
+    if (result.isError || !block || block.isError) return false;
     let parsed: any;
     try {
         parsed = JSON.parse(block.text);
@@ -61,6 +61,7 @@ export function isEmptyPayload(result: ToolResult): boolean {
 
 export interface ToolResult {
     content: Array<{ type: 'text'; text: string; isError?: boolean }>;
+    isError?: boolean;
 }
 
 export type TokenResolver = () => string | undefined;
