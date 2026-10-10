@@ -433,27 +433,27 @@ export default {
         if (url.pathname === '/mcp') {
             if (request.method === 'POST') return handleMcpPost(request, env);
 
-            // GET (SSE upgrade) and DELETE (session termination): we're
-            // stateless, so just answer with 200 / no events / no body.
-            const token = extractBearer(request);
-            if (!token) return unauthorized(env, request, 'Missing bearer token');
+            // GET is the Streamable-HTTP SSE upgrade. This server is stateless
+            // and never pushes server-initiated messages, and the spec's answer
+            // for that is 405 — clients then stop opening streams and operate
+            // POST-only. The previous behavior (200 + empty text/event-stream
+            // that closes immediately) read to clients as a dropped stream and
+            // put every connected agent into an infinite reconnect loop:
+            // ~3.6M GETs/day against ~6k real POSTs. No auth check first —
+            // the method is unsupported regardless of who asks.
             if (request.method === 'GET') {
-                return new Response('', {
-                    status: 200,
-                    headers: {
-                        'Content-Type': 'text/event-stream',
-                        'Cache-Control': 'no-store',
-                        Connection: 'keep-alive',
-                        ...corsHeaders(),
-                    },
+                return new Response('Method not allowed: this server does not offer an SSE stream', {
+                    status: 405,
+                    headers: { Allow: 'POST, DELETE, OPTIONS', ...corsHeaders() },
                 });
             }
+            // DELETE (session termination): stateless, nothing to tear down.
             if (request.method === 'DELETE') {
                 return new Response(null, { status: 204, headers: corsHeaders() });
             }
             return new Response('Method not allowed', {
                 status: 405,
-                headers: corsHeaders(),
+                headers: { Allow: 'POST, DELETE, OPTIONS', ...corsHeaders() },
             });
         }
 
