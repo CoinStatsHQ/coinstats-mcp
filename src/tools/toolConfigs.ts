@@ -401,34 +401,6 @@ export const allToolConfigs: ToolConfig<any>[] = [
         parameters: {},
     },
 
-    // Exchange Balance Tool Configuration
-    {
-        name: 'get-exchange-balance',
-        // Not a pure read: upstream connects the exchange on first use and
-        // renames an existing connection when `name` differs.
-        annotations: destructive('Get Exchange Balance', true),
-        description:
-            "Get the balance data for a provided Exchange. The first call with a given set of credentials connects that exchange to the user's CoinStats account (creates a portfolio and stores the credentials); later calls reuse it.",
-        endpoint: '/exchange/balance',
-        method: 'POST',
-        parameters: {
-            connectionFields: z
-                .object({
-                    apiKey: z.string().optional().describe('Exchange API key'),
-                    apiSecret: z.string().optional().describe('Exchange API secret'),
-                    passphrase: z
-                        .string()
-                        .optional()
-                        .describe('API passphrase — required by some exchanges (e.g. Bitget, OKX, KuCoin)'),
-                })
-                .passthrough()
-                .describe(
-                    'Exchange API credentials. Required fields vary per exchange — call get-exchanges (/exchange/support) for the exact fields a given connectionId needs. Common fields: apiKey, apiSecret, passphrase.'
-                ),
-            connectionId: z.string().describe('The exchange connection id'),
-        },
-    },
-
     // Exchange Sync Status Tool Configuration
     {
         name: 'get-exchange-sync-status',
