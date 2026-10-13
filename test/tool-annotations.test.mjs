@@ -64,15 +64,15 @@ function loadWorker(allToolConfigs) {
 
 const HINTS = ['readOnlyHint', 'destructiveHint', 'openWorldHint'];
 const WRITE_TOOLS = ['sync-portfolio', 'transactions-sync', 'connect-portfolio-wallet', 'add-portfolio-transaction'];
-// get-exchange-balance connects the exchange on first use, and both exchange
-// tools rename an existing connection when given a different name.
-const DESTRUCTIVE_TOOLS = ['delete-portfolio', 'connect-portfolio-exchange', 'get-exchange-balance'];
+// connect-portfolio-exchange renames an existing connection when given a
+// different name.
+const DESTRUCTIVE_TOOLS = ['delete-portfolio', 'connect-portfolio-exchange'];
 
 const configs = loadToolConfigs();
 const byName = Object.fromEntries(configs.map((c) => [c.name, c]));
 
 test('every tool declares a title and all three hints as booleans', () => {
-    assert.ok(configs.length >= 38);
+    assert.ok(configs.length >= 37);
     for (const c of configs) {
         assert.equal(typeof c.annotations?.title, 'string', `${c.name} title`);
         assert.ok(c.annotations.title.trim().length > 0, `${c.name} title is empty`);
@@ -85,8 +85,8 @@ test('titles are unique', () => {
     assert.equal(new Set(titles).size, titles.length);
 });
 
-test('get-* tools are read-only and never destructive (except get-exchange-balance)', () => {
-    for (const c of configs.filter((c) => c.name.startsWith('get-') && !DESTRUCTIVE_TOOLS.includes(c.name))) {
+test('get-* tools are read-only and never destructive', () => {
+    for (const c of configs.filter((c) => c.name.startsWith('get-'))) {
         assert.equal(c.annotations.readOnlyHint, true, c.name);
         assert.equal(c.annotations.destructiveHint, false, c.name);
     }
