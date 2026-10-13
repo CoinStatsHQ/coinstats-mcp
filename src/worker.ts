@@ -10,6 +10,10 @@ interface Env {
     // Workers Analytics Engine dataset for per-tool usage metrics. Optional
     // so the stdio build and `wrangler dev` (no binding) degrade to a no-op.
     MCP_AE?: AnalyticsEngineDataset;
+    // Domain-verification token issued by the OpenAI plugin submission portal.
+    // Set per deployment (`wrangler secret put OPENAI_APPS_CHALLENGE`); the
+    // challenge route 404s when it's unset.
+    OPENAI_APPS_CHALLENGE?: string;
 }
 
 const SERVER_NAME = 'coinstats-mcp';
@@ -373,6 +377,16 @@ export default {
         if (url.pathname === '/healthz') {
             return new Response(JSON.stringify({ ok: true }), {
                 headers: { 'Content-Type': 'application/json', ...corsHeaders() },
+            });
+        }
+
+        // OpenAI plugin domain verification. The portal fetches this URL and
+        // expects the bare token as plain text — no JSON, no extra lines.
+        if (url.pathname === '/.well-known/openai-apps-challenge') {
+            const token = env.OPENAI_APPS_CHALLENGE?.trim();
+            if (!token) return new Response('Not found', { status: 404 });
+            return new Response(token, {
+                headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' },
             });
         }
 
