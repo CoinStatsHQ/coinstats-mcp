@@ -179,6 +179,14 @@ wrangler dev --var OAUTH_ISSUER:http://localhost:1337 \
              --var COINSTATS_API_BASE_URL:http://localhost:9999
 ```
 
+### OpenAI plugin domain verification
+
+The OpenAI plugin submission portal verifies domain ownership by fetching `https://mcp.coinstats.app/.well-known/openai-apps-challenge` and expecting the token it issued as plain text. The Worker serves the `OPENAI_APPS_CHALLENGE` env var at that path, and returns 404 when the variable is unset. Set it per deployment, outside the committed config:
+
+```bash
+wrangler secret put OPENAI_APPS_CHALLENGE
+```
+
 ## Related
 
 - [CoinStats API docs](https://coinstats.app/api-docs) — full REST surface, MCP setup guide, tool catalog
