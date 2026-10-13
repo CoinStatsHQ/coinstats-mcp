@@ -3,9 +3,22 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { universalApiHandler } from '../services/request.js';
 import { COINSTATS_API_BASE } from '../config/constants.js';
 
+/**
+ * MCP tool annotations, with every hint required so no tool can ship
+ * without them (directory reviews flag missing ones). See toolConfigs.ts
+ * for how each hint is chosen.
+ */
+export interface ToolAnnotations {
+    title: string;
+    readOnlyHint: boolean;
+    destructiveHint: boolean;
+    openWorldHint: boolean;
+}
+
 export interface ToolConfig<T> {
     name: string;
     description: string;
+    annotations: ToolAnnotations;
     endpoint: string;
     method?: string;
     basePath?: string;
@@ -117,29 +130,15 @@ export function registerTools(
     toolConfigs.forEach((config) => {
         // Cast to any to short-circuit the SDK's deep ZodRawShape inference,
         // which TS otherwise refuses to resolve for a heterogeneous tool list.
-        (server.tool as any)(
+        (server.registerTool as any)(
             config.name,
-            config.description,
-            config.parameters,
+            {
+                title: config.annotations.title,
+                description: config.description,
+                inputSchema: config.parameters,
+                annotations: config.annotations,
+            },
             (params: Record<string, any>) => invokeTool(config, params, getToken?.())
         );
     });
-}
-
-export function createToolConfig<T>(
-    name: string,
-    description: string,
-    endpoint: string,
-    parameters: Record<string, ZodType>,
-    method: string = 'GET',
-    basePath?: string
-): ToolConfig<T> {
-    return {
-        name,
-        description,
-        endpoint,
-        method,
-        parameters,
-        basePath,
-    };
 }

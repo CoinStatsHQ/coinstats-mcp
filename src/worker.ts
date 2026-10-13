@@ -139,7 +139,9 @@ function toolDescriptor(cfg: ToolConfig<any>) {
     }) as any;
     return {
         name: cfg.name,
+        title: cfg.annotations.title,
         description: cfg.description,
+        annotations: cfg.annotations,
         // MCP requires `inputSchema`; some clients also accept the JSON Schema
         // shape directly. We strip the wrapping `$schema` key zod-to-json-schema
         // adds at the root.
