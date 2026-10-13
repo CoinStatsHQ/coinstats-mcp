@@ -1,5 +1,37 @@
 import { z } from 'zod';
-import { ToolConfig } from './toolFactory.js';
+import { ToolAnnotations, ToolConfig } from './toolFactory.js';
+
+/**
+ * MCP tool annotations. The Claude Connectors Directory requires a `title`
+ * plus `readOnlyHint` / `destructiveHint` on every tool, and OpenAI's plugin
+ * review requires `readOnlyHint`, `destructiveHint` and `openWorldHint` as
+ * explicit booleans, so every tool sets all four.
+ *
+ * openWorldHint is true when the tool reaches outside the CoinStats catalog
+ * and the caller's own account: arbitrary public wallet addresses (on-chain
+ * lookups and syncs) and third-party exchange accounts reached with
+ * user-supplied credentials. CoinStats' own market, news and reference
+ * catalog, and the caller's existing portfolios, count as closed (false).
+ */
+const readOnly = (title: string, openWorldHint: boolean): ToolAnnotations => ({
+    title,
+    readOnlyHint: true,
+    destructiveHint: false,
+    openWorldHint,
+});
+// Additive writes: create portfolios, add transactions, or trigger a sync.
+const write = (title: string, openWorldHint: boolean): ToolAnnotations => ({
+    title,
+    readOnlyHint: false,
+    destructiveHint: false,
+    openWorldHint,
+});
+const destructive = (title: string, openWorldHint: boolean): ToolAnnotations => ({
+    title,
+    readOnlyHint: false,
+    destructiveHint: true,
+    openWorldHint,
+});
 
 /**
  * Shown (in place of an empty result) when a portfolio read is called with no
@@ -52,6 +84,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // Coin List Tool Configuration
     {
         name: 'get-coins',
+        annotations: readOnly('List Coins', false),
         description:
             'Get comprehensive data about all cryptocurrencies: Price, market cap, and volume. Price changes (1h, 24h, 7d). Supply information. Trading metrics. Social links and metadata.',
         endpoint: '/coins',
@@ -125,6 +158,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // Coin by ID Tool Configuration
     {
         name: 'get-coin-by-id',
+        annotations: readOnly('Get Coin Details', false),
         description: 'Get detailed information about a specific cryptocurrency based on its unique identifier.',
         endpoint: '/coins/{coinId}',
         method: 'GET',
@@ -137,6 +171,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // Coin Chart by ID Tool Configuration
     {
         name: 'get-coin-chart-by-id',
+        annotations: readOnly('Get Coin Price Chart', false),
         description: 'Get chart data for a specific cryptocurrency based on its unique identifier, specifying different time ranges.',
         endpoint: '/coins/{coinId}/charts',
         method: 'GET',
@@ -149,6 +184,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // Coin Average Price Tool Configuration
     {
         name: 'get-coin-avg-price',
+        annotations: readOnly('Get Historical Average Coin Price', false),
         description: 'Get the historical average price for a specific cryptocurrency based on its unique identifier and a specific date.',
         endpoint: '/coins/price/avg',
         method: 'GET',
@@ -161,6 +197,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // Coin Exchange Price Tool Configuration
     {
         name: 'get-coin-exchange-price',
+        annotations: readOnly('Get Historical Coin Price on an Exchange', false),
         description: 'Get the historical price data for a specific cryptocurrency on a particular exchange.',
         endpoint: '/coins/price/exchange',
         method: 'GET',
@@ -175,6 +212,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // Ticker Exchanges Tool Configuration
     {
         name: 'get-ticker-exchanges',
+        annotations: readOnly('List Ticker Exchanges', false),
         description: 'Get a list of supported exchanges.',
         endpoint: '/tickers/exchanges',
         method: 'GET',
@@ -184,6 +222,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // Ticker Markets Tool Configuration
     {
         name: 'get-ticker-markets',
+        annotations: readOnly('List Ticker Markets', false),
         description: 'Get a list of tickers for a specific cryptocurrency across different exchanges.',
         endpoint: '/tickers/markets',
         method: 'GET',
@@ -201,6 +240,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // Wallet Blockchains Tool Configuration
     {
         name: 'get-blockchains',
+        annotations: readOnly('List Supported Blockchains', false),
         description: 'Get a list of supported blockchains by CoinStats.',
         endpoint: '/wallet/blockchains',
         method: 'GET',
@@ -210,6 +250,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // Wallet Balance Tool Configuration
     {
         name: 'get-wallet-balance',
+        annotations: readOnly('Get Wallet Balance', true),
         description: 'Get the balance data for a provided wallet address. Query one network, several, or every supported network at once.',
         endpoint: '/wallet/balance',
         method: 'GET',
@@ -229,6 +270,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // Wallet Balances Tool Configuration
     {
         name: 'get-wallet-balances',
+        annotations: readOnly('Get Balances for Multiple Wallets', true),
         description: 'Get the balance data for a provided wallet address on all CoinStats supported networks.',
         endpoint: '/wallet/balances',
         method: 'GET',
@@ -245,6 +287,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // Wallet Sync Status Tool Configuration
     {
         name: 'get-wallet-sync-status',
+        annotations: readOnly('Get Wallet Sync Status', true),
         description: 'Get the syncing status of the wallet with the blockchain network.',
         endpoint: '/wallet/status',
         method: 'GET',
@@ -264,6 +307,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // Wallet Transactions Tool Configuration
     {
         name: 'get-wallet-transactions',
+        annotations: readOnly('Get Wallet Transactions', true),
         description: 'Get transaction data for a specific wallet. Ensure transactions are synced by calling PATCH /transactions first.',
         endpoint: '/wallet/transactions',
         method: 'GET',
@@ -283,6 +327,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // Wallet Profit/Loss History Tool Configuration
     {
         name: 'get-wallet-pl-history',
+        annotations: readOnly('Get Wallet Profit & Loss History', true),
         description:
             'Get cash-flow-adjusted historical P&L for a wallet across one or more synchronized networks. Use transactions-sync first and poll get-wallet-sync-status when fresh history is required. COST WARNING: 25 credits per requested network; connectionId/blockchain="all" costs 250 credits.',
         endpoint: '/wallet/pl/history',
@@ -304,6 +349,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // Wallet Transactions Sync Tool Configuration
     {
         name: 'transactions-sync',
+        annotations: write('Sync Wallet Transactions', true),
         description: 'Initiate the syncing process to update transaction data for a specific wallet.',
         endpoint: '/wallet/transactions',
         method: 'PATCH',
@@ -327,6 +373,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // Wallet DeFi Tool Configuration
     {
         name: 'get-wallet-defi',
+        annotations: readOnly('Get Wallet DeFi Positions', true),
         description:
             'Get DeFi positions (staking, liquidity pools, yield farming, earned rewards) for a wallet address. COST WARNING: this is an expensive, paid-plan endpoint — 400 credits per request, multiplied by the number of connectionId/blockchain values, and 4000 credits if either is "all". Prefer a single specific network; avoid "all" unless explicitly requested.',
         endpoint: '/wallet/defi',
@@ -347,6 +394,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // Exchange Support Tool Configuration
     {
         name: 'get-exchanges',
+        annotations: readOnly('List Supported Exchanges', false),
         description: 'Get a list of supported exchange portfolio connections by CoinStats.',
         endpoint: '/exchange/support',
         method: 'GET',
@@ -356,7 +404,11 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // Exchange Balance Tool Configuration
     {
         name: 'get-exchange-balance',
-        description: 'Get the balance data for a provided Exchange.',
+        // Not a pure read: upstream connects the exchange on first use and
+        // renames an existing connection when `name` differs.
+        annotations: destructive('Get Exchange Balance', true),
+        description:
+            "Get the balance data for a provided Exchange. The first call with a given set of credentials connects that exchange to the user's CoinStats account (creates a portfolio and stores the credentials); later calls reuse it.",
         endpoint: '/exchange/balance',
         method: 'POST',
         parameters: {
@@ -380,6 +432,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // Exchange Sync Status Tool Configuration
     {
         name: 'get-exchange-sync-status',
+        annotations: readOnly('Get Exchange Sync Status', false),
         description: 'Get the syncing status of the exchange portfolio.',
         endpoint: '/exchange/status',
         method: 'GET',
@@ -391,6 +444,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // Exchange Transactions Tool Configuration
     {
         name: 'get-exchange-transactions',
+        annotations: readOnly('Get Exchange Transactions', false),
         description: 'Get transaction data for a specific exchange.',
         endpoint: '/exchange/transactions',
         method: 'GET',
@@ -408,6 +462,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // Exchange Profit/Loss History Tool Configuration
     {
         name: 'get-exchange-pl-history',
+        annotations: readOnly('Get Exchange Profit & Loss History', false),
         description:
             'Get cash-flow-adjusted historical P&L for an owned exchange portfolio. Deposits and withdrawals are removed from investment performance. Costs 25 credits per request.',
         endpoint: '/exchange/pl/history',
@@ -423,6 +478,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // Fiats Tool Configuration
     {
         name: 'get-fiat-currencies',
+        annotations: readOnly('List Fiat Currencies', false),
         description: 'Get a list of fiat currencies supported by CoinStats.',
         endpoint: '/fiats',
         method: 'GET',
@@ -432,6 +488,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // News Sources Tool Configuration
     {
         name: 'get-news-sources',
+        annotations: readOnly('List News Sources', false),
         description: 'Get news sources.',
         endpoint: '/news/sources',
         method: 'GET',
@@ -441,6 +498,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // News Tool Configuration
     {
         name: 'get-news',
+        annotations: readOnly('Get Crypto News', false),
         description: 'Get news articles with pagination.',
         endpoint: '/news',
         method: 'GET',
@@ -455,6 +513,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // News by Type Tool Configuration
     {
         name: 'get-news-by-type',
+        annotations: readOnly('Get Crypto News by Type', false),
         description: 'Get news articles based on a type.',
         endpoint: '/news/type/{type}',
         method: 'GET',
@@ -468,6 +527,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // News by ID Tool Configuration
     {
         name: 'get-news-by-id',
+        annotations: readOnly('Get News Article', false),
         description: 'Get news by id.',
         endpoint: '/news/{id}',
         method: 'GET',
@@ -479,6 +539,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // Markets Tool Configuration
     {
         name: 'get-market-cap',
+        annotations: readOnly('Get Global Market Data', false),
         description: 'Get global market data.',
         endpoint: '/markets',
         method: 'GET',
@@ -488,6 +549,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // Portfolio List Tool Configuration
     {
         name: 'get-portfolio-list',
+        annotations: readOnly('List Portfolios', false),
         description:
             'List every portfolio on the user\'s CoinStats account — ones built in the app and ones created via connect-portfolio-wallet/exchange. Returns portfolioId, portfolioName and portfolioType (manual, exchange, wallet, ...). Call this first and pass portfolioId to the other portfolio tools; transactions can be added only to manual portfolios.',
         endpoint: '/portfolio/list',
@@ -498,6 +560,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // Portfolio Sync Tool Configuration
     {
         name: 'sync-portfolio',
+        annotations: write('Sync Portfolio', false),
         description:
             'Trigger a re-sync for one of the user\'s wallet or exchange portfolios, then poll get-portfolio-sync-status until it reports "synced". COST WARNING: pass portfolioId to sync just that portfolio (30 credits). Manual portfolios cannot be synced. Omitting portfolioId syncs ALL of the user\'s non-manual portfolios at 10x credits — only do that on explicit request.',
         endpoint: '/portfolio/sync',
@@ -514,6 +577,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // Portfolio Sync Status Tool Configuration
     {
         name: 'get-portfolio-sync-status',
+        annotations: readOnly('Get Portfolio Sync Status', false),
         description:
             'Get the sync status ("syncing" or "synced") of one of the user\'s portfolios. Use after sync-portfolio to know when data is ready.',
         endpoint: '/portfolio/status',
@@ -526,6 +590,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // Portfolio Coins Tool Configuration
     {
         name: 'get-portfolio-coins',
+        annotations: readOnly('Get Portfolio Holdings', false),
         description:
             'Get a list of portfolio coins with P/L and other data displayed on CoinStats web. Pass portfolioId (from get-portfolio-list) to target one portfolio; omit it to aggregate all of the user\'s portfolios.',
         endpoint: '/portfolio/coins',
@@ -545,6 +610,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // Portfolio Chart Tool Configuration
     {
         name: 'get-portfolio-chart',
+        annotations: readOnly('Get Portfolio Value Chart', false),
         description:
             'Get portfolio performance chart data. Pass portfolioId (from get-portfolio-list) to target one portfolio; omit it to aggregate all of the user\'s portfolios.',
         endpoint: '/portfolio/chart',
@@ -562,6 +628,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // Portfolio Profit/Loss History Tool Configuration
     {
         name: 'get-portfolio-pl-history',
+        annotations: readOnly('Get Portfolio Profit & Loss History', false),
         description:
             'Get cash-flow-adjusted historical P&L for one portfolio or all of the user\'s portfolios. Deposits and withdrawals are removed from investment performance. Costs 25 credits per request.',
         endpoint: '/portfolio/pl/history',
@@ -579,6 +646,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // Portfolio Transactions Tool Configuration
     {
         name: 'get-portfolio-transactions',
+        annotations: readOnly('Get Portfolio Transactions', false),
         description:
             'Get a list of portfolio transactions. Pass portfolioId (from get-portfolio-list) to target one portfolio; omit it to aggregate all of the user\'s portfolios.',
         endpoint: '/portfolio/transactions',
@@ -599,6 +667,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // Connect Portfolio Wallet Tool Configuration
     {
         name: 'connect-portfolio-wallet',
+        annotations: write('Connect Wallet to Portfolio', true),
         description:
             'Connect a wallet address to the account and create a tracked portfolio. Returns a portfolioId you can pass to the other portfolio tools. Creates a real portfolio on the user\'s account and starts a background transaction sync.',
         endpoint: '/portfolio/wallet',
@@ -615,8 +684,11 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // Connect Portfolio Exchange Tool Configuration
     {
         name: 'connect-portfolio-exchange',
+        // Destructive: if the exchange is already connected, a different
+        // `name` overwrites that portfolio's existing name upstream.
+        annotations: destructive('Connect Exchange to Portfolio', true),
         description:
-            'Connect an exchange account to the account and create a tracked portfolio. Returns a portfolioId you can pass to the other portfolio tools. Creates a real portfolio on the user\'s account and starts a background transaction sync.',
+            'Connect an exchange account to the account and create a tracked portfolio. Returns a portfolioId you can pass to the other portfolio tools. Creates a real portfolio on the user\'s account and starts a background transaction sync. If this exchange account is already connected, returns the existing portfolio and renames it when a different name is given.',
         endpoint: '/portfolio/exchange',
         method: 'POST',
         parameters: {
@@ -643,6 +715,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // Add Portfolio Transaction Tool Configuration
     {
         name: 'add-portfolio-transaction',
+        annotations: write('Add Portfolio Transaction', false),
         description:
             'Add a buy/sell transaction to one of the user\'s manual portfolios. portfolioId is required — call get-portfolio-list and pick a portfolio with portfolioType "manual"; if more than one fits, ask the user which one. Wallet/exchange portfolios sync automatically and cannot take manual transactions.',
         endpoint: '/portfolio/transaction',
@@ -661,6 +734,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // Delete Portfolio Tool Configuration
     {
         name: 'delete-portfolio',
+        annotations: destructive('Delete Portfolio', false),
         description:
             'Permanently delete one of the user\'s portfolios, including all its transactions; deleting a portfolio with portfolioType "parent" also deletes every linked child account. Irreversible — always name the exact portfolio (from get-portfolio-list) and get explicit user confirmation before calling.',
         endpoint: '/portfolio/{portfolioId}',
@@ -674,6 +748,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     // Currencies Tool Configuration
     {
         name: 'get-currencies',
+        annotations: readOnly('List Currencies', false),
         description: 'Get a list of fiat currencies supported by CoinStats.',
         endpoint: '/currencies',
         method: 'GET',
