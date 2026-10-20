@@ -304,6 +304,34 @@ export const allToolConfigs: ToolConfig<any>[] = [
         },
     },
 
+    // Open Perpetual Positions Tool Configuration
+    {
+        name: 'get-perpetual-positions',
+        annotations: readOnly('Get Perpetual Positions', false),
+        description:
+            'Get open perpetual and futures positions from connected exchanges, including Hyperliquid, with leverage, CoinStats ticker-based P&L and funding where available. Pass portfolioId from get-portfolio-list for one exchange or parent; omit for all owned exchanges. If the all-exchanges call fails, retry individual portfolioIds from get-portfolio-list. An empty result can mean no open positions or no connected exchange; use get-portfolio-list to check. Unavailable fields are null. Funding since opening is positive when received and negative when paid, separate from unrealized P&L. Options are excluded. COST: 10 credits per request.',
+        endpoint: '/portfolio/perpetual/positions',
+        method: 'GET',
+        parameters: {
+            portfolioId: z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/).optional().describe('Owned exchange or parent portfolio from get-portfolio-list. Omit for all owned exchange portfolios.'),
+        },
+    },
+
+    // Perpetual Trade History Tool Configuration
+    {
+        name: 'get-perpetual-trades',
+        annotations: readOnly('Get Perpetual Trade History', false),
+        description:
+            'Get synced perpetual trade history from connected exchanges, including Hyperliquid, with prices, realized P&L and fees where available. Pass portfolioId from get-portfolio-list for one exchange or parent; omit for all owned exchanges. An empty result can mean no matching records or no connected exchange; use get-portfolio-list to check. Coverage depends on the connector and last sync; records can group executions into positions. Realized P&L follows the connector basis; BingX includes fees and funding, so do not subtract those again. Trade side is long or short when available. Results are newest first by opening time. Use nextSkip for another page; new records can shift offsets and a full page may be followed by an empty page. Missing fields are null. Funding payments are not included. COST: 10 credits per request.',
+        endpoint: '/portfolio/perpetual/trades',
+        method: 'GET',
+        parameters: {
+            portfolioId: z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/).optional().describe('Owned exchange or parent portfolio from get-portfolio-list. Omit for all owned exchanges.'),
+            limit: z.number().int().min(1).max(100).optional().default(20).describe('Records per page, from 1 to 100.'),
+            skip: z.number().int().min(0).max(10000).optional().default(0).describe('Offset, from 0 to 10000. Use nextSkip from the previous response.'),
+        },
+    },
+
     // Wallet Transactions Tool Configuration
     {
         name: 'get-wallet-transactions',

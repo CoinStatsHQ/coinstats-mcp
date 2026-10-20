@@ -78,6 +78,8 @@ After authorising, your agent can:
 - Look up real-time prices, charts and market data for 100,000+ coins
 - Read your CoinStats portfolio coins, P/L and performance over time
 - Query wallet balances and transactions across 120+ blockchains
+- Read open perpetual and futures positions from connected exchanges, including Hyperliquid, with leverage, P/L and funding where available
+- Read synced perpetual trade history with `get-perpetual-trades`, including prices, realized P/L and fees where available. Supports `portfolioId` and `limit`/`skip` pagination; coverage depends on the connector and last sync.
 - Retrieve cash-flow-adjusted historical P/L for wallets, exchanges, and portfolios over preset or custom calendar ranges
 - Compare ticker pricing across 200+ exchanges
 - Pull crypto news (latest, trending, filtered by source or topic)
