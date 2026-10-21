@@ -23,7 +23,7 @@
     "author": "CoinStats",
     "license": "MIT",
     "scripts": {
-        "build": "npm i && npm run build:types && npm run build:js && shx chmod +x dist/index.js",
+        "build": "npm i && npm run build:types && npm run build:js && node -e \"require('fs').chmodSync('dist/index.js', 0o755)\"",
         "build:js": "tsc",
         "build:types": "tsc --emitDeclarationOnly",
         "test": "node --test test/*.test.mjs",
@@ -37,11 +37,10 @@
         "zod-to-json-schema": "^3.24.5"
     },
     "devDependencies": {
-        "@cloudflare/workers-types": "^4.20251001.0",
+        "@cloudflare/workers-types": "^5.20261006.1",
         "@types/node": "^22.13.13",
-        "shx": "^0.4.0",
         "typescript": "^5.8.2",
-        "wrangler": "^4.32.0"
+        "wrangler": "^4.149.0"
     },
     "engines": {
         "node": ">=18.0.0"
