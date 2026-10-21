@@ -1,0 +1,125 @@
+name: CI
+
+# Checks run on every pull request (including forks, which get no secrets) and
+# on main. A push to main deploys the Worker once the checks pass. Deploy
+# credentials live in the `production` environment, which only protected
+# branches can use.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: check-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        # Lifecycle scripts are skipped: the build, tests and deploy only need
+        # prebuilt binaries from optional dependencies.
+        run: npm ci --ignore-scripts
+
+      - name: Build
+        run: npm run build:js
+
+      - name: Test
+        run: npm test
+
+      - name: Bundle Worker (dry run)
+        run: npx wrangler deploy --dry-run --outdir "$RUNNER_TEMP/worker-bundle"
+
+  deploy:
+    needs: check
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: production
+      url: https://mcp.coinstats.app
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - name: Check deploy secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          missing=0
+          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name is not set in the production environment"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        # Lifecycle scripts are skipped: the build, tests and deploy only need
+        # prebuilt binaries from optional dependencies.
+        run: npm ci --ignore-scripts
+
+      # A re-run of an older main run keeps its original SHA. Refuse to deploy
+      # anything but the current tip so a re-run can't roll production back.
+      - name: Require current main commit
+        run: |
+          main_sha="$(git ls-remote --exit-code "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/main | cut -f1)"
+          if [ "$GITHUB_SHA" != "$main_sha" ]; then
+            echo "::error::Refusing to deploy $GITHUB_SHA, main is at $main_sha"
+            exit 1
+          fi
+
+      # Calls the locked wrangler from node_modules directly so a missing or
+      # broken CLI fails instead of installing another version with
+      # credentials present.
+      - name: Deploy to Cloudflare Workers
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: ./node_modules/.bin/wrangler deploy --message "$GITHUB_SHA"
+
+      # A failed probe does not roll back; see README "Deployment" for recovery.
+      - name: Smoke test
+        run: |
+          for attempt in 1 2 3 4 5; do
+            body="$(curl -sS --max-time 10 -o - -w '\n%{http_code}' https://mcp.coinstats.app/healthz || true)"
+            status="${body##*$'\n'}"
+            if [ "$status" = "200" ] && [ "${body%$'\n'*}" = '{"ok":true}' ]; then
+              echo "healthz OK"
+              exit 0
+            fi
+            echo "attempt $attempt: HTTP $status"
+            sleep 5
+          done
+          echo "::error::https://mcp.coinstats.app/healthz did not return 200 {\"ok\":true} after deploy"
+          exit 1

@@ -164,9 +164,9 @@ npm run build
 # Run the Worker locally (requires `wrangler login` first)
 npm run dev
 
-# Deploy the Worker — needs CLOUDFLARE_ACCOUNT_ID exported in the env
-# (the account ID isn't committed to wrangler.jsonc; pull it from the
-# Cloudflare dashboard sidebar or the CI deploy job's secrets).
+# Deploy the Worker manually — needs CLOUDFLARE_ACCOUNT_ID exported in the
+# env (the account ID isn't committed to wrangler.jsonc). Normally you don't
+# need this: merging to main deploys automatically (see "Deployment" below).
 export CLOUDFLARE_ACCOUNT_ID=<your-cf-account-id>
 npm run deploy
 
@@ -180,6 +180,12 @@ For local Worker development you can override env vars:
 wrangler dev --var OAUTH_ISSUER:http://localhost:1337 \
              --var COINSTATS_API_BASE_URL:http://localhost:9999
 ```
+
+## Deployment
+
+GitHub Actions (`.github/workflows/ci.yml`) builds, tests and dry-run bundles the Worker on every pull request. Each push to `main` runs the same checks, then deploys to `mcp.coinstats.app` and probes `/healthz`. The deploy job uses the `production` environment, which only protected branches can use, and reads two secrets from it: `CLOUDFLARE_API_TOKEN` (Workers deploy permission) and `CLOUDFLARE_ACCOUNT_ID`. Pull requests from forks run the checks without access to either secret. To redeploy without a new commit, run the workflow manually on `main`; the deploy job only ships the current tip of `main`, so re-running an old run fails instead of rolling back.
+
+A failed post-deploy health check does not roll back automatically. To restore the previous version, run `npx wrangler rollback` (or pick a version under Workers & Pages → coinstats-mcp → Deployments in the Cloudflare dashboard), then fix forward on `main`.
 
 ### OpenAI plugin domain verification
 

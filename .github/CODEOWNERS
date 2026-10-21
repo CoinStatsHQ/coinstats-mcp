@@ -1,0 +1,9 @@
+# Default reviewers for everything in the repository.
+* @CoinStatsHQ/backend-team
+
+# Changes here run in, or decide what runs in, the production deploy job,
+# which holds the Cloudflare credentials. Later rules take precedence.
+/.github/ @narekgevorgyan
+/package.json @narekgevorgyan
+/package-lock.json @narekgevorgyan
+/wrangler.jsonc @narekgevorgyan
