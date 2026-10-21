@@ -3,9 +3,22 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { universalApiHandler } from '../services/request.js';
 import { COINSTATS_API_BASE } from '../config/constants.js';
 
+/**
+ * MCP tool annotations, with every hint required so no tool can ship
+ * without them (directory reviews flag missing ones). See toolConfigs.ts
+ * for how each hint is chosen.
+ */
+export interface ToolAnnotations {
+    title: string;
+    readOnlyHint: boolean;
+    destructiveHint: boolean;
+    openWorldHint: boolean;
+}
+
 export interface ToolConfig<T> {
     name: string;
     description: string;
+    annotations: ToolAnnotations;
     endpoint: string;
     method?: string;
     basePath?: string;
@@ -22,8 +35,8 @@ export interface ToolConfig<T> {
     /**
      * Optional human-facing message returned in place of an empty payload.
      * Used by the portfolio read tools: when the caller supplies no portfolio
-     * selector (`shareToken`/`portfolioId`) and the API returns nothing, we
-     * surface actionable instructions (share a portfolio, or connect one)
+     * selector (`portfolioId`) and the API returns nothing, we
+     * surface actionable instructions (pick a portfolio, or connect one)
      * instead of a bare `[]` the model would misreport as "you have none".
      */
     emptyGuidance?: string;
@@ -37,7 +50,7 @@ export interface ToolConfig<T> {
  */
 export function isEmptyPayload(result: ToolResult): boolean {
     const block = result.content?.[0];
-    if (!block || block.isError) return false;
+    if (result.isError || !block || block.isError) return false;
     let parsed: any;
     try {
         parsed = JSON.parse(block.text);
@@ -61,6 +74,7 @@ export function isEmptyPayload(result: ToolResult): boolean {
 
 export interface ToolResult {
     content: Array<{ type: 'text'; text: string; isError?: boolean }>;
+    isError?: boolean;
 }
 
 export type TokenResolver = () => string | undefined;
@@ -87,11 +101,10 @@ export async function invokeTool(
 
     // When a portfolio read is called without a selector and comes back
     // empty, return actionable guidance instead of the bare empty payload
-    // so the MCP client tells the user how to proceed (share a portfolio,
-    // supply a passcode if protected, or connect a new wallet/exchange).
+    // so the MCP client tells the user how to proceed (pick a portfolio
+    // from get-portfolio-list, or connect a new wallet/exchange).
     if (
         config.emptyGuidance &&
-        !params.shareToken &&
         !params.portfolioId &&
         isEmptyPayload(result)
     ) {
@@ -117,29 +130,15 @@ export function registerTools(
     toolConfigs.forEach((config) => {
         // Cast to any to short-circuit the SDK's deep ZodRawShape inference,
         // which TS otherwise refuses to resolve for a heterogeneous tool list.
-        (server.tool as any)(
+        (server.registerTool as any)(
             config.name,
-            config.description,
-            config.parameters,
+            {
+                title: config.annotations.title,
+                description: config.description,
+                inputSchema: config.parameters,
+                annotations: config.annotations,
+            },
             (params: Record<string, any>) => invokeTool(config, params, getToken?.())
         );
     });
-}
-
-export function createToolConfig<T>(
-    name: string,
-    description: string,
-    endpoint: string,
-    parameters: Record<string, ZodType>,
-    method: string = 'GET',
-    basePath?: string
-): ToolConfig<T> {
-    return {
-        name,
-        description,
-        endpoint,
-        method,
-        parameters,
-        basePath,
-    };
 }

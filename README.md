@@ -78,6 +78,9 @@ After authorising, your agent can:
 - Look up real-time prices, charts and market data for 100,000+ coins
 - Read your CoinStats portfolio coins, P/L and performance over time
 - Query wallet balances and transactions across 120+ blockchains
+- Read open perpetual and futures positions from connected exchanges, including Hyperliquid, with leverage, P/L and funding where available
+- Read synced perpetual trade history with `get-perpetual-trades`, including prices, realized P/L and fees where available. Supports `portfolioId` and `limit`/`skip` pagination; coverage depends on the connector and last sync.
+- Retrieve cash-flow-adjusted historical P/L for wallets, exchanges, and portfolios over preset or custom calendar ranges
 - Compare ticker pricing across 200+ exchanges
 - Pull crypto news (latest, trending, filtered by source or topic)
 
@@ -161,9 +164,9 @@ npm run build
 # Run the Worker locally (requires `wrangler login` first)
 npm run dev
 
-# Deploy the Worker — needs CLOUDFLARE_ACCOUNT_ID exported in the env
-# (the account ID isn't committed to wrangler.jsonc; pull it from the
-# Cloudflare dashboard sidebar or the CI deploy job's secrets).
+# Deploy the Worker manually — needs CLOUDFLARE_ACCOUNT_ID exported in the
+# env (the account ID isn't committed to wrangler.jsonc). Normally you don't
+# need this: merging to main deploys automatically (see "Deployment" below).
 export CLOUDFLARE_ACCOUNT_ID=<your-cf-account-id>
 npm run deploy
 
@@ -176,6 +179,20 @@ For local Worker development you can override env vars:
 ```bash
 wrangler dev --var OAUTH_ISSUER:http://localhost:1337 \
              --var COINSTATS_API_BASE_URL:http://localhost:9999
+```
+
+## Deployment
+
+GitHub Actions (`.github/workflows/ci.yml`) builds, tests and dry-run bundles the Worker on every pull request. Each push to `main` runs the same checks, then deploys to `mcp.coinstats.app` and probes `/healthz`. The deploy job uses the `production` environment, which only protected branches can use, and reads two secrets from it: `CLOUDFLARE_API_TOKEN` (Workers deploy permission) and `CLOUDFLARE_ACCOUNT_ID`. Pull requests from forks run the checks without access to either secret. To redeploy without a new commit, run the workflow manually on `main`; the deploy job only ships the current tip of `main`, so re-running an old run fails instead of rolling back.
+
+A failed post-deploy health check does not roll back automatically. To restore the previous version, run `npx wrangler rollback` (or pick a version under Workers & Pages → coinstats-mcp → Deployments in the Cloudflare dashboard), then fix forward on `main`.
+
+### OpenAI plugin domain verification
+
+The OpenAI plugin submission portal verifies domain ownership by fetching `https://mcp.coinstats.app/.well-known/openai-apps-challenge` and expecting the token it issued as plain text. The Worker serves the `OPENAI_APPS_CHALLENGE` env var at that path, and returns 404 when the variable is unset. Set it per deployment, outside the committed config:
+
+```bash
+wrangler secret put OPENAI_APPS_CHALLENGE
 ```
 
 ## Related
