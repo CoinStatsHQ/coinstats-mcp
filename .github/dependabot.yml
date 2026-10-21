@@ -6,8 +6,10 @@ updates:
     schedule:
       interval: monthly
 
-  # npm dependencies, including the wrangler CLI used to deploy. Grouped so
-  # each month is one PR.
+  # npm dependencies, including the wrangler CLI used to deploy. Minor and
+  # patch updates are grouped so each month is one PR. Major versions are
+  # skipped here because they usually need code changes; upgrade those in a
+  # dedicated PR.
   - package-ecosystem: npm
     directory: /
     schedule:
@@ -15,3 +17,7 @@ updates:
     groups:
       npm:
         patterns: ["*"]
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
