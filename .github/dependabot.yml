@@ -1,0 +1,17 @@
+version: 2
+updates:
+  # Keeps the SHA-pinned actions in .github/workflows current.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+
+  # npm dependencies, including the wrangler CLI used to deploy. Grouped so
+  # each month is one PR.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      npm:
+        patterns: ["*"]
