@@ -32,16 +32,16 @@
         "tail": "wrangler tail"
     },
     "dependencies": {
-        "@modelcontextprotocol/sdk": "^1.29.0",
-        "zod": "^3.24.2",
+        "@modelcontextprotocol/sdk": "^1.32.1",
+        "zod": "^4.6.7",
         "zod-to-json-schema": "^3.24.5"
     },
     "devDependencies": {
-        "@cloudflare/workers-types": "^4.20251001.0",
-        "@types/node": "^22.13.13",
+        "@cloudflare/workers-types": "^5.20261018.1",
+        "@types/node": "^26.6.5",
         "shx": "^0.4.0",
-        "typescript": "^5.8.2",
-        "wrangler": "^4.32.0"
+        "typescript": "^7.0.2",
+        "wrangler": "^4.151.1"
     },
     "engines": {
         "node": ">=18.0.0"
