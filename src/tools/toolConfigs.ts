@@ -309,7 +309,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
         name: 'get-perpetual-positions',
         annotations: readOnly('Get Perpetual Positions', false),
         description:
-            'Get open perpetual and futures positions from connected exchanges, including Hyperliquid, with leverage, CoinStats ticker-based P&L and funding where available. Pass portfolioId from get-portfolio-list for one exchange or parent; omit for all owned exchanges. If the all-exchanges call fails, retry individual portfolioIds from get-portfolio-list. An empty result can mean no open positions or no connected exchange; use get-portfolio-list to check. Unavailable fields are null. Funding since opening is positive when received and negative when paid, separate from unrealized P&L. Options are excluded. COST: 10 credits per request.',
+            'Get open perpetual and futures positions from connected exchanges, including Hyperliquid, with leverage, CoinStats ticker-based P&L and funding where available. Pass portfolioId from get-portfolio-list for one exchange or parent; omit for all owned exchanges. If the all-exchanges call fails, retry individual portfolioIds from get-portfolio-list. Records carry the exchange\'s own portfolioId, which can be a child of a listed portfolio; call get-portfolio-list with includeChildren to see which. An empty result can mean no open positions or no connected exchange; use get-portfolio-list to check. Unavailable fields are null. Funding since opening is positive when received and negative when paid, separate from unrealized P&L. Options are excluded. COST: 10 credits per request.',
         endpoint: '/portfolio/perpetual/positions',
         method: 'GET',
         parameters: {
@@ -322,7 +322,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
         name: 'get-perpetual-trades',
         annotations: readOnly('Get Perpetual Trade History', false),
         description:
-            'Get synced perpetual trade history from connected exchanges, including Hyperliquid, with prices, realized P&L and fees where available. Pass portfolioId from get-portfolio-list for one exchange or parent; omit for all owned exchanges. An empty result can mean no matching records or no connected exchange; use get-portfolio-list to check. Coverage depends on the connector and last sync; records can group executions into positions. Realized P&L follows the connector basis; BingX includes fees and funding, so do not subtract those again. Trade side is long or short when available. Results are newest first by opening time. Use nextSkip for another page; new records can shift offsets and a full page may be followed by an empty page. Missing fields are null. Funding payments are not included. COST: 10 credits per request.',
+            'Get synced perpetual trade history from connected exchanges, including Hyperliquid, with prices, realized P&L and fees where available. Pass portfolioId from get-portfolio-list for one exchange or parent; omit for all owned exchanges. An empty result can mean no matching records or no connected exchange; use get-portfolio-list to check. Coverage depends on the connector and last sync; records can group executions into positions. Realized P&L follows the connector basis; BingX includes fees and funding, so do not subtract those again. Trade side is long or short when available. Results are newest first by opening time. Records carry the exchange\'s own portfolioId, which can be a child of a listed portfolio; call get-portfolio-list with includeChildren to see which. Use nextSkip for another page; new records can shift offsets and a full page may be followed by an empty page. Missing fields are null. Funding payments are not included. COST: 10 credits per request.',
         endpoint: '/portfolio/perpetual/trades',
         method: 'GET',
         parameters: {
@@ -551,10 +551,15 @@ export const allToolConfigs: ToolConfig<any>[] = [
         name: 'get-portfolio-list',
         annotations: readOnly('List Portfolios', false),
         description:
-            'List every portfolio on the user\'s CoinStats account — ones built in the app and ones created via connect-portfolio-wallet/exchange. Returns portfolioId, portfolioName and portfolioType (manual, exchange, wallet, ...). Call this first and pass portfolioId to the other portfolio tools; transactions can be added only to manual portfolios.',
+            'List every portfolio on the user\'s CoinStats account — ones built in the app and ones created via connect-portfolio-wallet/exchange. Returns portfolioId, portfolioName and portfolioType (manual, exchange, wallet, ...). Call this first and pass portfolioId to the other portfolio tools; transactions can be added only to manual portfolios. Only top-level portfolios are listed unless includeChildren is true, which nests each portfolio\'s child portfolios (for example the exchange or per-chain portfolios under a connection) to every level. Use it when another tool returns a portfolioId that is not in the list, and to avoid counting both a parent and its children.',
         endpoint: '/portfolio/list',
         method: 'GET',
-        parameters: {},
+        parameters: {
+            includeChildren: z
+                .boolean()
+                .optional()
+                .describe('Nest child portfolios in `children`, to every level (up to 32). Default false: top-level portfolios only.'),
+        },
     },
 
     // Portfolio Sync Tool Configuration
