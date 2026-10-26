@@ -336,19 +336,29 @@ export const allToolConfigs: ToolConfig<any>[] = [
     {
         name: 'get-wallet-transactions',
         annotations: readOnly('Get Wallet Transactions', true),
-        description: 'Get transaction data for a specific wallet. Ensure transactions are synced by calling PATCH /transactions first.',
+        description:
+            'Get transaction data for a specific wallet. Call transactions-sync first and wait until get-wallet-sync-status reports "synced". To keep pages small, filter with coinId, and drop spam with hideUnidentifiedCoins and excludeDetectedSpam.',
         endpoint: '/wallet/transactions',
         method: 'GET',
         parameters: {
             address: z.string().describe('Wallet address'),
             connectionId: z.string().describe('The identifier of connection, which you received from /wallet/blockchains call response.'),
             page: z.number().optional().describe('Page number').default(1),
-            limit: z.number().optional().describe('Number of results per page').default(20),
+            limit: z.number().int().min(1).max(200).optional().describe('Number of results per page, from 1 to 200.').default(20),
             from: z.string().optional().describe('Start date in ISO 8601 format'),
             to: z.string().optional().describe('End date in ISO 8601 format'),
             currency: z.string().optional().describe('Currency for price data').default('USD'),
             types: z.string().optional().describe('Transaction types, comma separated (deposit,withdraw,approve,executed,balance,fee)'),
             txId: z.string().optional().describe('To search with transaction hash'),
+            coinId: z.string().optional().describe('Only transactions of this coin, by CoinStats coin id (e.g. "usd-coin", "ethereum").'),
+            hideUnidentifiedCoins: z
+                .boolean()
+                .optional()
+                .describe('Leave out transactions of coins CoinStats does not recognize, such as look-alike copies of real tokens. Default false.'),
+            excludeDetectedSpam: z
+                .boolean()
+                .optional()
+                .describe('Leave out transactions the CoinStats spam check flagged during sync. Flagged items otherwise carry isSpam: true. Default false.'),
         },
     },
 
@@ -666,6 +676,14 @@ export const allToolConfigs: ToolConfig<any>[] = [
             limit: z.number().optional().describe('Number of results per page').default(20),
             currency: z.string().describe('Currency for price data'),
             coinId: z.string().optional().describe('Filter by coin ID'),
+            hideUnidentifiedCoins: z
+                .boolean()
+                .optional()
+                .describe('Leave out transactions of coins CoinStats does not recognize, such as look-alike copies of real tokens. Default false.'),
+            excludeDetectedSpam: z
+                .boolean()
+                .optional()
+                .describe('Leave out wallet transactions the CoinStats spam check flagged during sync. Default false.'),
         },
     },
 
