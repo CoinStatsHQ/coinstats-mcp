@@ -63,6 +63,20 @@ for (const [params, pathname, query] of routes) {
     });
 }
 
+test('get-market-insights errors on an unknown or missing indicator instead of calling another route', async () => {
+    let called = false;
+    const fetchStub = async () => { called = true; return { ok: true, json: async () => ({}) }; };
+    const { allToolConfigs } = loadModule('tools/toolConfigs.ts', fetchStub);
+    const { invokeTool } = loadModule('tools/toolFactory.ts', fetchStub);
+    const config = allToolConfigs.find(c => c.name === 'get-market-insights');
+    for (const params of [{ insight: 'altcoin-season' }, { insight: 'fear_and_greed' }, {}, { insight: 'constructor' }]) {
+        const result = await invokeTool(config, params, 'token');
+        assert.equal(result.isError, true);
+        assert.match(result.content[0].text, /unknown insight/);
+    }
+    assert.equal(called, false);
+});
+
 test('get-market-insights only accepts known indicators', () => {
     const { allToolConfigs } = loadModule('tools/toolConfigs.ts');
     const schema = z.object(allToolConfigs.find(c => c.name === 'get-market-insights').parameters);

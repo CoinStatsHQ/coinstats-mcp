@@ -36,7 +36,9 @@ export interface ToolConfig<T> {
      * For a tool that fronts several related routes: the value of `param`
      * picks the route from `endpoints`, and is not sent to the API. Lets one
      * tool cover a family like `/insights/*` instead of one tool per route.
-     * `endpoint` is the fallback when the value has no entry.
+     * A value with no entry is a tool error, never a call to another route:
+     * the Worker does not run the zod schema, so a typo must not quietly
+     * return a different indicator.
      */
     endpointBy?: { param: string; endpoints: Record<string, string> };
     /**
@@ -105,8 +107,13 @@ export async function invokeTool(
     let endpoint = config.endpoint;
     let apiParams = params;
     if (config.endpointBy) {
-        const { [config.endpointBy.param]: selector, ...rest } = params;
-        endpoint = config.endpointBy.endpoints[selector] ?? config.endpoint;
+        const { param, endpoints } = config.endpointBy;
+        const { [param]: selector, ...rest } = params;
+        if (!Object.hasOwn(endpoints, selector)) {
+            const message = `Error: unknown ${param} '${selector}'; expected one of ${Object.keys(endpoints).join(', ')}`;
+            return { content: [{ type: 'text', text: message, isError: true }], isError: true };
+        }
+        endpoint = endpoints[selector];
         apiParams = rest;
     }
 

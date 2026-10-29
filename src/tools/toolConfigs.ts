@@ -534,9 +534,9 @@ export const allToolConfigs: ToolConfig<any>[] = [
         description: [
             'Get news articles from one feed.',
             '- `latest`: newest first.',
-            '- `trending`: recent articles ranked by total reactions (bullish + bearish).',
-            '- `handpicked`: editor-picked articles, in random order from a pool of up to 10. When 3 or fewer are picked, the feed is padded with recent, highly reacted articles up to exactly 3. So a 3-article result usually means padding, not editor picks, `limit` cannot raise it, and repeated calls can return different articles.',
-            '- `bullish` / `bearish`: articles from the past week with at least one bullish (id 2) / bearish (id 3) reaction, sorted by that count. These are not a sentiment split: an article with both reaction kinds appears in both feeds. To judge sentiment, compare the two counts on each article.',
+            '- `trending`: articles from the last 3 days, mostly newest first, with articles that have reactions moved up among themselves by total reactions. It is not a strict reactions ranking: an article with no reactions is still ordered by date, so it can sit above a more-reacted older one.',
+            '- `handpicked`: a random pick of up to `limit` editor-picked articles from a pool of up to 10, shown newest first. When 3 or fewer are picked, the feed is padded up to exactly 3 with highly reacted articles from the last 12 hours. So a 3-article result usually means padding, not editor picks, `limit` can neither raise nor lower it, and repeated calls can return different articles.',
+            '- `bullish` / `bearish`: articles from the last 3 days with at least one bullish (id 2) / bearish (id 3) reaction, sorted by that count. These are not a sentiment split: an article with both reaction kinds appears in both feeds. To judge sentiment, compare the two counts on each article.',
             'Feeds mix languages, and the same story can appear once per language edition with separate ids and separate reaction counts. Responses are a bare array with no total, so a page shorter than `limit` does not always mean the feed has ended.',
             NEWS_REACTIONS_NOTE,
         ].join('\n'),
