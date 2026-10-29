@@ -279,7 +279,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
         name: 'get-wallet-balances',
         annotations: readOnly('Get Balances for Multiple Wallets', true),
         description: 'Get balance data for one wallet address across networks, or for several wallets at once. Provide `address` or `wallets`; `address` wins if both are given. With only an address, the networks are detected from it: an EVM address is queried on every EVM chain, any other address on the first network its format fits.',
-        endpoint: '/wallet/balances',
+        endpoint: '/wallet/balance/many',
         method: 'GET',
         parameters: {
             address: z.string().optional().describe('The wallet address to query. Provide this or `wallets`.'),
@@ -364,7 +364,10 @@ export const allToolConfigs: ToolConfig<any>[] = [
             from: z.string().optional().describe('Start date in ISO 8601 format'),
             to: z.string().optional().describe('End date in ISO 8601 format'),
             currency: z.string().optional().describe('Currency for price data').default('USD'),
-            types: z.string().optional().describe('Comma-separated transaction types to filter by, e.g. "deposit,withdraw".'),
+            types: z
+                .string()
+                .optional()
+                .describe('Comma-separated transaction types such as Sent, Received or Swap. These are display names, not the raw types (deposit, withdraw, ...).'),
             txId: z.string().optional().describe('To search with transaction hash'),
             coinId: z.string().optional().describe('Only transactions of this coin, by CoinStats coin id (e.g. "usd-coin", "ethereum").'),
             hideUnidentifiedCoins: z
@@ -484,7 +487,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
             types: z
                 .string()
                 .optional()
-                .describe('Comma-separated transaction types such as Sent, Received or Swap. These are exchange display names, not the wallet types (deposit, withdraw, ...).'),
+                .describe('Comma-separated transaction types such as Sent, Received or Swap. These are display names, not the raw types (deposit, withdraw, ...).'),
             hideUnidentifiedCoins: z
                 .boolean()
                 .optional()
@@ -536,8 +539,8 @@ export const allToolConfigs: ToolConfig<any>[] = [
         endpoint: '/news',
         method: 'GET',
         parameters: {
-            page: z.number().optional().describe('Page number').default(1),
-            limit: z.number().optional().describe('Number of results per page').default(20),
+            page: z.number().max(100).optional().describe('Page number, up to 100').default(1),
+            limit: z.number().max(100).optional().describe('Number of results per page, up to 100').default(20),
             from: z.string().optional().describe('Start date in ISO 8601 format'),
             to: z.string().optional().describe('End date in ISO 8601 format'),
         },
@@ -551,7 +554,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
             'Get news articles from one feed.',
             '- `latest`: newest first.',
             '- `trending`: articles from the last 3 days, mostly newest first, with articles that have reactions moved up among themselves by total reactions. It is not a strict reactions ranking: an article with no reactions is still ordered by date, so it can sit above a more-reacted older one.',
-            '- `handpicked`: a random pick of up to `limit` editor-picked articles from a pool of up to 10, shown newest first. When 3 or fewer are picked, the feed is padded up to exactly 3 with highly reacted articles from the last 12 hours. So a 3-article result usually means padding, not editor picks, `limit` can neither raise nor lower it, and repeated calls can return different articles.',
+            '- `handpicked`: a random pick of up to `limit` editor-picked articles from a pool of up to 10, shown newest first. When that gives 3 or fewer, the feed is padded up to exactly 3 with highly reacted articles from the last 12 hours, and `limit` cannot change the count. So a 3-article result usually means padding, not editor picks, and repeated calls can return different articles.',
             '- `bullish` / `bearish`: articles from the last 3 days with at least one bullish (id 2) / bearish (id 3) reaction, sorted by that count. These are not a sentiment split: an article with both reaction kinds appears in both feeds. To judge sentiment, compare the two counts on each article.',
             'Feeds mix languages, and the same story can appear once per language edition with separate ids and separate reaction counts. Responses are a bare array with no total, so a page shorter than `limit` does not always mean the feed has ended.',
             NEWS_REACTIONS_NOTE,
@@ -687,6 +690,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
                 .optional()
                 .describe('Sort (default `volume24hr`). `gap`: largest price difference between venues first, needs `pairs: "only"`. `closing`: soonest end first. `volume` is lifetime volume.'),
             order: z.enum(['asc', 'desc']).optional().describe('Sort direction for `volume24hr`, `volume` and `endDate` (default `desc`).'),
+            // The browser's categories (prediction-markets src/data/taxonomy.json); add new upstream ones here.
             category: z
                 .enum(['politics', 'crypto', 'economy', 'sports', 'culture', 'tech', 'world', 'climate', 'health'])
                 .optional()
