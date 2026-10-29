@@ -652,6 +652,45 @@ export const allToolConfigs: ToolConfig<any>[] = [
         },
     },
     {
+        name: 'get-prediction-events',
+        annotations: readOnly('List Prediction Market Events', false),
+        description: [
+            'List prediction-market events (a question with its related markets) across Polymarket and Kalshi, as the CoinStats odds browser does.',
+            'For the biggest price differences between venues, call with `pairs: "only"`, `sort: "gap"` and `include: "prices"`: each row then carries `pair`, the same question priced on both venues, with the gap. Pairs trading at least $1K in 24h rank ahead of thinly traded ones, whose gap may be a stale quote.',
+            '`sort: "gap"` only works with `pairs: "only"`. `sort: "closing"` lists the soonest-ending events first. Prices are probabilities from 0 to 1; money is USD. Costs 2 API credits.',
+        ].join('\n'),
+        endpoint: '/prediction/events',
+        method: 'GET',
+        parameters: {
+            pairs: z
+                .enum(['only', 'once'])
+                .optional()
+                .describe('`only`: just events priced on more than one venue. `once`: every event, each cross-venue pair listed once. Omit for every event as each venue lists it.'),
+            sort: z
+                .enum(['volume24hr', 'volume', 'endDate', 'closing', 'gap'])
+                .optional()
+                .describe('Sort (default `volume24hr`). `gap`: largest price difference between venues first, needs `pairs: "only"`. `closing`: soonest end first. `volume` is lifetime volume.'),
+            order: z.enum(['asc', 'desc']).optional().describe('Sort direction for `volume24hr`, `volume` and `endDate` (default `desc`).'),
+            category: z
+                .enum(['politics', 'crypto', 'economy', 'sports', 'culture', 'tech', 'world', 'climate', 'health'])
+                .optional()
+                .describe('Only events in this category.'),
+            q: z.string().min(2).max(80).optional().describe('Search text (2-80 characters) matched against event titles.'),
+            include: z
+                .enum(['prices'])
+                .optional()
+                .describe('`prices` adds each row\'s cross-venue `pair` with both venues\' prices and their gap. With it, at most 24 rows are returned.'),
+            source: z.enum(['polymarket', 'kalshi', 'polymarket-us']).optional().describe('Only events from this venue.'),
+            active: z.enum(['true', 'false']).optional().describe('`true` for live events; `false` for ended or inactive ones.'),
+            limit: z.number().int().min(1).max(100).optional().describe('Results per page (1-100, default 50; at most 24 with `include: "prices"`).'),
+            offset: z.number().int().min(0).optional().describe('Number of results to skip (default 0).'),
+            view: z
+                .enum(['intl', 'us', 'all'])
+                .optional()
+                .describe('Venues listed when `source` is not set: `intl` (default) Polymarket and Kalshi, `us` Polymarket US and Kalshi, `all` every venue.'),
+        },
+    },
+    {
         name: 'get-prediction-market',
         annotations: readOnly('Get Prediction Market', false),
         description: 'Get one prediction market by its `slug`: the question, outcomes with current prices, 24h and lifetime volume, liquidity, resolution status, and the event and tags it belongs to. Prices are probabilities from 0 to 1; money is USD. Costs 1 API credit.',

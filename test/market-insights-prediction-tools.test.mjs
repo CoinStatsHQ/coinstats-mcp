@@ -83,6 +83,13 @@ test('get-prediction-markets passes sort and paging to /prediction/markets', asy
     assert.deepEqual(Object.fromEntries(url.searchParams), { sort: 'volume24hr', limit: '10', offset: '20' });
 });
 
+test('get-prediction-events forwards the biggest-difference browse query', async () => {
+    const query = { pairs: 'only', sort: 'gap', include: 'prices', category: 'politics', limit: 24 };
+    const url = await call('get-prediction-events', query);
+    assert.equal(url.pathname, '/prediction/events');
+    assert.deepEqual(Object.fromEntries(url.searchParams), { ...query, limit: '24' });
+});
+
 test('get-prediction-market puts the encoded slug in the path', async () => {
     const url = await call('get-prediction-market', { slug: 'will-btc-hit-100k' });
     assert.equal(url.pathname, '/prediction/markets/will-btc-hit-100k');
@@ -91,7 +98,7 @@ test('get-prediction-market puts the encoded slug in the path', async () => {
 
 test('prediction and insight tools are read-only and closed-world', () => {
     const { allToolConfigs } = loadModule('tools/toolConfigs.ts');
-    for (const name of ['get-market-insights', 'search-prediction-markets', 'get-prediction-markets', 'get-prediction-market']) {
+    for (const name of ['get-market-insights', 'search-prediction-markets', 'get-prediction-markets', 'get-prediction-events', 'get-prediction-market']) {
         const { annotations } = allToolConfigs.find(c => c.name === name);
         assert.equal(annotations.readOnlyHint, true, name);
         assert.equal(annotations.destructiveHint, false, name);
