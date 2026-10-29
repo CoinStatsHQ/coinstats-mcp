@@ -32,7 +32,7 @@ function loadWorker() {
         module: { exports: moduleExports },
         Request,
         require(specifier) {
-            if (specifier === 'zod') return { z: { object: () => ({}) } };
+            if (specifier === 'zod') return { z: { object: () => ({ safeParse: () => ({ success: true }) }) } };
             if (specifier === 'zod-to-json-schema') return { zodToJsonSchema: () => ({}) };
             if (specifier === './tools/toolConfigs.js') return { allToolConfigs: [] };
             if (specifier === './tools/toolFactory.js') return { invokeTool: async () => ({}) };

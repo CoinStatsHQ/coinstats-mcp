@@ -278,8 +278,22 @@ async function dispatch(
         if (!cfg) {
             return jsonRpcError(id, -32601, `Tool not found: ${name}`);
         }
+        // The SDK checks arguments on stdio; this transport skips it, so do
+        // it here or a typo in an enum reaches the API (or the wrong route).
+        // Forward only the caller's own known keys, not the parsed data:
+        // zod defaults such as `networks: 'all'` would change what the
+        // hosted server has always sent, and what the call is billed.
+        const parsed = z.object(cfg.parameters).safeParse(args);
+        if (!parsed.success) {
+            const issues = parsed.error.issues
+                .map((i) => `${i.path.join('.') || 'arguments'}: ${i.message}`)
+                .join('; ');
+            const text = `Input validation error: Invalid arguments for tool ${name}: ${issues}`;
+            return { jsonrpc: '2.0', id, result: { content: [{ type: 'text', text, isError: true }], isError: true } };
+        }
+        const known = Object.fromEntries(Object.entries(args).filter(([key]) => key in cfg.parameters));
         try {
-            const result = await invokeTool(cfg, args, token);
+            const result = await invokeTool(cfg, known, token);
             return { jsonrpc: '2.0', id, result };
         } catch (err: any) {
             // Surfaced as HTTP 401 by handleMcpPost, not as a JSON-RPC error.
