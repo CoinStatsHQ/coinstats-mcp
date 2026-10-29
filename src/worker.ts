@@ -291,7 +291,7 @@ async function dispatch(
             const text = `Input validation error: Invalid arguments for tool ${name}: ${issues}`;
             return { jsonrpc: '2.0', id, result: { content: [{ type: 'text', text, isError: true }], isError: true } };
         }
-        const known = Object.fromEntries(Object.entries(args).filter(([key]) => key in cfg.parameters));
+        const known = Object.fromEntries(Object.entries(args).filter(([key]) => Object.hasOwn(cfg.parameters, key)));
         try {
             const result = await invokeTool(cfg, known, token);
             return { jsonrpc: '2.0', id, result };

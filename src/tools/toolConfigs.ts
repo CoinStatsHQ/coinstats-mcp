@@ -278,16 +278,20 @@ export const allToolConfigs: ToolConfig<any>[] = [
     {
         name: 'get-wallet-balances',
         annotations: readOnly('Get Balances for Multiple Wallets', true),
-        description: 'Get the balance data for a provided wallet address on all CoinStats supported networks.',
+        description: 'Get balance data for one wallet address across networks, or for several wallets at once. Provide `address` or `wallets`; `address` wins if both are given. With only an address, the networks are detected from it: an EVM address is queried on every EVM chain, any other address on the first network its format fits.',
         endpoint: '/wallet/balances',
         method: 'GET',
         parameters: {
-            address: z.string().describe('The wallet address for which the balance is being queried'),
-            networks: z
+            address: z.string().optional().describe('The wallet address to query. Provide this or `wallets`.'),
+            wallets: z
                 .string()
                 .optional()
-                .describe('Blockchain networks to query, comma-separated (e.g., "ethereum,polygon,binance")')
-                .default('all'),
+                .describe('Several wallets as comma-separated connectionId:address pairs, e.g. "ethereum:0xabc...,solana:5xyz...". Ignored when `address` is given.'),
+            blockchain: z
+                .string()
+                .optional()
+                .describe(`Networks to query for \`address\`. Omit to detect them from the address. ${WALLET_NETWORK_VALUES_FORCEALL}`),
+            networks: z.string().optional().describe('Deprecated: use `blockchain`.'),
         },
     },
 
@@ -303,11 +307,11 @@ export const allToolConfigs: ToolConfig<any>[] = [
             connectionId: z
                 .string()
                 .optional()
-                .describe(`Connection id from get-blockchains. Provide connectionId OR blockchain (connectionId is used if both are given). ${WALLET_NETWORK_VALUES_FORCEALL}`),
+                .describe('Connection id from get-blockchains. Provide connectionId OR blockchain (connectionId is used if both are given). One value only: lists, "all" and "forceall" are not supported here.'),
             blockchain: z
                 .string()
                 .optional()
-                .describe(`Blockchain network id from get-blockchains. Provide connectionId OR blockchain. ${WALLET_NETWORK_VALUES_FORCEALL}`),
+                .describe('Blockchain network id from get-blockchains. Provide connectionId OR blockchain. One value only: lists, "all" and "forceall" are not supported here.'),
         },
     },
 
@@ -348,14 +352,19 @@ export const allToolConfigs: ToolConfig<any>[] = [
         endpoint: '/wallet/transactions',
         method: 'GET',
         parameters: {
-            address: z.string().describe('Wallet address'),
-            connectionId: z.string().describe('The identifier of connection, which you received from /wallet/blockchains call response.'),
+            address: z.string().optional().describe('Wallet address. Provide address with connectionId or blockchain, or use `wallets` instead.'),
+            connectionId: z.string().optional().describe('Connection id from get-blockchains. Provide this or `blockchain` with `address`.'),
+            blockchain: z.string().optional().describe('Blockchain network id from get-blockchains. Provide this or `connectionId` with `address`.'),
+            wallets: z
+                .string()
+                .optional()
+                .describe('Several wallets as comma-separated connectionId:address pairs, e.g. "ethereum:0xabc...,solana:5xyz...", in place of address + connectionId.'),
             page: z.number().optional().describe('Page number').default(1),
             limit: z.number().int().min(1).max(200).optional().describe('Number of results per page, from 1 to 200.').default(20),
             from: z.string().optional().describe('Start date in ISO 8601 format'),
             to: z.string().optional().describe('End date in ISO 8601 format'),
             currency: z.string().optional().describe('Currency for price data').default('USD'),
-            types: z.string().optional().describe('Transaction types, comma separated (deposit,withdraw,approve,executed,balance,fee)'),
+            types: z.string().optional().describe('Comma-separated transaction types to filter by, e.g. "deposit,withdraw".'),
             txId: z.string().optional().describe('To search with transaction hash'),
             coinId: z.string().optional().describe('Only transactions of this coin, by CoinStats coin id (e.g. "usd-coin", "ethereum").'),
             hideUnidentifiedCoins: z
@@ -472,7 +481,14 @@ export const allToolConfigs: ToolConfig<any>[] = [
             from: z.string().optional().describe('Start date in ISO 8601 format'),
             to: z.string().optional().describe('End date in ISO 8601 format'),
             currency: z.string().optional().describe('Currency for price data').default('USD'),
-            types: z.string().optional().describe('Transaction types, comma separated (deposit,withdraw,approve,executed,balance,fee)'),
+            types: z
+                .string()
+                .optional()
+                .describe('Comma-separated transaction types such as Sent, Received or Swap. These are exchange display names, not the wallet types (deposit, withdraw, ...).'),
+            hideUnidentifiedCoins: z
+                .boolean()
+                .optional()
+                .describe('Leave out transactions of coins CoinStats does not recognize. Default false.'),
         },
     },
 
@@ -782,6 +798,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
                 .optional()
                 .describe('Portfolio id from get-portfolio-list. Omit to aggregate all of the user\'s portfolios.'),
             type: z.string().describe('One of 24h, 1w, 1m, 3m, 6m, 1y, all'),
+            currency: z.string().optional().describe('Currency for chart values. Default USD.'),
         },
     },
 
@@ -821,6 +838,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
             limit: z.number().optional().describe('Number of results per page').default(20),
             currency: z.string().describe('Currency for price data'),
             coinId: z.string().optional().describe('Filter by coin ID'),
+            types: z.string().optional().describe('Comma-separated transaction types to filter by, e.g. "balance".'),
             hideUnidentifiedCoins: z
                 .boolean()
                 .optional()

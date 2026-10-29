@@ -103,13 +103,25 @@ test('invalid arguments are a tool error and never reach the API', async () => {
 });
 
 test('valid arguments are forwarded as sent, without zod defaults', async () => {
-    const { body, calls } = await callTool('get-wallet-balances', { address: 'bc1qexample' });
+    const { body, calls } = await callTool('get-wallet-transactions', { address: '0xabc', blockchain: 'ethereum' });
     assert.equal(body.result.isError, undefined);
-    // `networks` defaults to 'all' in the schema; the hosted server has never sent it.
-    assert.deepEqual(calls, [{ name: 'get-wallet-balances', params: { address: 'bc1qexample' } }]);
+    // page, limit and currency have zod defaults; the hosted server has never sent them.
+    assert.deepEqual(calls, [{ name: 'get-wallet-transactions', params: { address: '0xabc', blockchain: 'ethereum' } }]);
+});
+
+test('wallet tools accept the API\'s alternative selectors', async () => {
+    for (const [name, args] of [
+        ['get-wallet-balances', { wallets: 'ethereum:0xabc,solana:5xyz' }],
+        ['get-wallet-transactions', { wallets: 'ethereum:0xabc' }],
+        ['get-portfolio-transactions', { portfolioId: 'p1', currency: 'USD', types: 'balance' }],
+    ]) {
+        const { body, calls } = await callTool(name, args);
+        assert.equal(body.result.isError, undefined, name);
+        assert.deepEqual(calls[0].params, args, name);
+    }
 });
 
 test('unknown argument keys are dropped before the call', async () => {
-    const { calls } = await callTool('get-prediction-market', { slug: 'will-btc-hit-100k', extra: 'x' });
+    const { calls } = await callTool('get-prediction-market', { slug: 'will-btc-hit-100k', extra: 'x', constructor: 'x', toString: 'x' });
     assert.deepEqual(calls[0].params, { slug: 'will-btc-hit-100k' });
 });
