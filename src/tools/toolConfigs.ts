@@ -597,7 +597,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
         description: [
             'Get a CoinStats market indicator. Pick one with `insight`:',
             '- `fear-and-greed`: the CoinStats Crypto Fear & Greed Index now, yesterday and last week. Each has a 0-100 `value` and a `value_classification` (Extreme fear, Fear, Neutral, Greed, Extreme greed); `now.update_time` is when it was last updated. This is CoinStats\' own index and can differ from other sites\' Fear & Greed figures.',
-            '- `fear-and-greed-chart`: the full daily history of the same index.',
+            '- `fear-and-greed-chart`: daily values of the same index for the past year, newest first.',
             '- `btc-dominance`: Bitcoin\'s share of total crypto market cap over time, as [timestamp, percentage] pairs. Requires `type` (the time range).',
             '- `rainbow-chart`: Rainbow Chart price history. Requires `coinId` (`bitcoin` or `ethereum`).',
             'Each call costs 10 API credits.',
@@ -675,7 +675,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
         annotations: readOnly('List Prediction Market Events', false),
         description: [
             'List prediction-market events (a question with its related markets) across Polymarket and Kalshi, as the CoinStats odds browser does.',
-            'For the biggest price differences between venues, call with `pairs: "only"`, `sort: "gap"` and `include: "prices"`: each row then carries `pair`, the same question priced on both venues, with the gap. Pairs trading at least $1K in 24h rank ahead of thinly traded ones, whose gap may be a stale quote.',
+            'For the biggest price differences between venues, call with `pairs: "only"`, `sort: "gap"` and `include: "prices"`: each row then carries `pair`, the same question priced on both venues, with the gap in `pair.aggregate.spread`. Pairs trading at least $1K in 24h rank ahead of thinly traded ones, whose gap may be a stale quote. The order uses the last stored gap, so it can differ by a place or two from the live prices in `pair.legs`.',
             '`sort: "gap"` only works with `pairs: "only"`. `sort: "closing"` lists the soonest-ending events first. Prices are probabilities from 0 to 1; money is USD. Costs 2 API credits.',
         ].join('\n'),
         endpoint: '/prediction/events',
