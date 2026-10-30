@@ -57,6 +57,13 @@ const WALLET_NETWORK_VALUES_FORCEALL =
 const WALLET_NETWORK_VALUES_ALL =
     'Accepts a single value (e.g. "ethereum"), a comma-separated list ("ethereum,polygon"), or "all" for every connection.';
 
+/**
+ * How news reactions read, shared by every news tool. `reactionsCount` keys
+ * are reaction ids: 2 is bullish, 3 is bearish (no other id is in use).
+ */
+const NEWS_REACTIONS_NOTE =
+    'Each article\'s `reactionsCount` maps reaction ids to counts: "2" = bullish, "3" = bearish (e.g. {"2":8,"3":3} is 8 bullish and 3 bearish). It is `{}` when nobody has reacted, which is normal for articles from the last day or so because reactions build up over several days. Counts are small (often under 20), so a one- or two-reaction gap is not a meaningful ranking. `reactions` is always empty here: it lists the signed-in app user\'s own reactions, which this API does not have.';
+
 const PROFIT_LOSS_RANGES = ['24h', '1w', '1m', '3m', '6m', '1y', 'all'] as const;
 const PROFIT_LOSS_INTERVALS = ['hourly', 'daily', 'weekly', 'monthly', 'yearly'] as const;
 
@@ -271,16 +278,20 @@ export const allToolConfigs: ToolConfig<any>[] = [
     {
         name: 'get-wallet-balances',
         annotations: readOnly('Get Balances for Multiple Wallets', true),
-        description: 'Get the balance data for a provided wallet address on all CoinStats supported networks.',
-        endpoint: '/wallet/balances',
+        description: 'Get balance data for one wallet address across networks, or for several wallets at once. Provide `address` or `wallets`; `address` wins if both are given. With only an address, the networks are detected from it: an EVM address is queried on every EVM chain, any other address on the first network its format fits.',
+        endpoint: '/wallet/balance/many',
         method: 'GET',
         parameters: {
-            address: z.string().describe('The wallet address for which the balance is being queried'),
-            networks: z
+            address: z.string().optional().describe('The wallet address to query. Provide this or `wallets`.'),
+            wallets: z
                 .string()
                 .optional()
-                .describe('Blockchain networks to query, comma-separated (e.g., "ethereum,polygon,binance")')
-                .default('all'),
+                .describe('Several wallets as comma-separated connectionId:address pairs, e.g. "ethereum:0xabc...,solana:5xyz...". Ignored when `address` is given.'),
+            blockchain: z
+                .string()
+                .optional()
+                .describe(`Networks to query for \`address\`. Omit to detect them from the address. ${WALLET_NETWORK_VALUES_FORCEALL}`),
+            networks: z.string().optional().describe('Deprecated: use `blockchain`.'),
         },
     },
 
@@ -296,11 +307,11 @@ export const allToolConfigs: ToolConfig<any>[] = [
             connectionId: z
                 .string()
                 .optional()
-                .describe(`Connection id from get-blockchains. Provide connectionId OR blockchain (connectionId is used if both are given). ${WALLET_NETWORK_VALUES_FORCEALL}`),
+                .describe('Connection id from get-blockchains. Provide connectionId OR blockchain (connectionId is used if both are given). One value only: lists, "all" and "forceall" are not supported here.'),
             blockchain: z
                 .string()
                 .optional()
-                .describe(`Blockchain network id from get-blockchains. Provide connectionId OR blockchain. ${WALLET_NETWORK_VALUES_FORCEALL}`),
+                .describe('Blockchain network id from get-blockchains. Provide connectionId OR blockchain. One value only: lists, "all" and "forceall" are not supported here.'),
         },
     },
 
@@ -341,14 +352,22 @@ export const allToolConfigs: ToolConfig<any>[] = [
         endpoint: '/wallet/transactions',
         method: 'GET',
         parameters: {
-            address: z.string().describe('Wallet address'),
-            connectionId: z.string().describe('The identifier of connection, which you received from /wallet/blockchains call response.'),
+            address: z.string().optional().describe('Wallet address. Provide address with connectionId or blockchain, or use `wallets` instead.'),
+            connectionId: z.string().optional().describe('Connection id from get-blockchains. Provide this or `blockchain` with `address`.'),
+            blockchain: z.string().optional().describe('Blockchain network id from get-blockchains. Provide this or `connectionId` with `address`.'),
+            wallets: z
+                .string()
+                .optional()
+                .describe('Several wallets as comma-separated connectionId:address pairs, e.g. "ethereum:0xabc...,solana:5xyz...", in place of address + connectionId.'),
             page: z.number().optional().describe('Page number').default(1),
             limit: z.number().int().min(1).max(200).optional().describe('Number of results per page, from 1 to 200.').default(20),
             from: z.string().optional().describe('Start date in ISO 8601 format'),
             to: z.string().optional().describe('End date in ISO 8601 format'),
             currency: z.string().optional().describe('Currency for price data').default('USD'),
-            types: z.string().optional().describe('Transaction types, comma separated (deposit,withdraw,approve,executed,balance,fee)'),
+            types: z
+                .string()
+                .optional()
+                .describe('Comma-separated transaction types such as Sent, Received or Swap. These are display names, not the raw types (deposit, withdraw, ...).'),
             txId: z.string().optional().describe('To search with transaction hash'),
             coinId: z.string().optional().describe('Only transactions of this coin, by CoinStats coin id (e.g. "usd-coin", "ethereum").'),
             hideUnidentifiedCoins: z
@@ -465,7 +484,14 @@ export const allToolConfigs: ToolConfig<any>[] = [
             from: z.string().optional().describe('Start date in ISO 8601 format'),
             to: z.string().optional().describe('End date in ISO 8601 format'),
             currency: z.string().optional().describe('Currency for price data').default('USD'),
-            types: z.string().optional().describe('Transaction types, comma separated (deposit,withdraw,approve,executed,balance,fee)'),
+            types: z
+                .string()
+                .optional()
+                .describe('Comma-separated transaction types such as Sent, Received or Swap. These are display names, not the raw types (deposit, withdraw, ...).'),
+            hideUnidentifiedCoins: z
+                .boolean()
+                .optional()
+                .describe('Leave out transactions of coins CoinStats does not recognize. Default false.'),
         },
     },
 
@@ -509,12 +535,12 @@ export const allToolConfigs: ToolConfig<any>[] = [
     {
         name: 'get-news',
         annotations: readOnly('Get Crypto News', false),
-        description: 'Get news articles with pagination.',
+        description: `Get the latest news articles, newest first, with pagination and an optional date window. Feeds mix languages and include some general tech stories; an empty \`relatedCoins\` usually means the article is not about crypto. ${NEWS_REACTIONS_NOTE}`,
         endpoint: '/news',
         method: 'GET',
         parameters: {
-            page: z.number().optional().describe('Page number').default(1),
-            limit: z.number().optional().describe('Number of results per page').default(20),
+            page: z.number().max(100).optional().describe('Page number, up to 100').default(1),
+            limit: z.number().max(100).optional().describe('Number of results per page, up to 100').default(20),
             from: z.string().optional().describe('Start date in ISO 8601 format'),
             to: z.string().optional().describe('End date in ISO 8601 format'),
         },
@@ -524,11 +550,19 @@ export const allToolConfigs: ToolConfig<any>[] = [
     {
         name: 'get-news-by-type',
         annotations: readOnly('Get Crypto News by Type', false),
-        description: 'Get news articles based on a type.',
+        description: [
+            'Get news articles from one feed.',
+            '- `latest`: newest first.',
+            '- `trending`: articles from the last 3 days, mostly newest first, with articles that have reactions moved up among themselves by total reactions. It is not a strict reactions ranking: an article with no reactions is still ordered by date, so it can sit above a more-reacted older one.',
+            '- `handpicked`: a random pick of up to `limit` editor-picked articles from a pool of up to 10, shown newest first. When that gives 3 or fewer, the feed is padded up to exactly 3 with highly reacted articles from the last 12 hours, and `limit` cannot change the count. So a 3-article result usually means padding, not editor picks, and repeated calls can return different articles.',
+            '- `bullish` / `bearish`: articles from the last 3 days with at least one bullish (id 2) / bearish (id 3) reaction, sorted by that count. These are not a sentiment split: an article with both reaction kinds appears in both feeds. To judge sentiment, compare the two counts on each article.',
+            'Feeds mix languages, and the same story can appear once per language edition with separate ids and separate reaction counts. Responses are a bare array with no total, so a page shorter than `limit` does not always mean the feed has ended.',
+            NEWS_REACTIONS_NOTE,
+        ].join('\n'),
         endpoint: '/news/type/{type}',
         method: 'GET',
         parameters: {
-            type: z.enum(['handpicked', 'trending', 'latest', 'bullish', 'bearish']).describe('News type'),
+            type: z.enum(['handpicked', 'trending', 'latest', 'bullish', 'bearish']).describe('News feed. See the tool description for what each feed contains.'),
             page: z.number().optional().describe('Page number').default(1),
             limit: z.number().optional().describe('Number of results per page').default(20),
         },
@@ -538,7 +572,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
     {
         name: 'get-news-by-id',
         annotations: readOnly('Get News Article', false),
-        description: 'Get news by id.',
+        description: `Get a single news article by its id. ${NEWS_REACTIONS_NOTE}`,
         endpoint: '/news/{id}',
         method: 'GET',
         parameters: {
@@ -554,6 +588,137 @@ export const allToolConfigs: ToolConfig<any>[] = [
         endpoint: '/markets',
         method: 'GET',
         parameters: {},
+    },
+
+    // Market Insights Tool Configuration
+    {
+        name: 'get-market-insights',
+        annotations: readOnly('Get Market Insights', false),
+        description: [
+            'Get a CoinStats market indicator. Pick one with `insight`:',
+            '- `fear-and-greed`: the CoinStats Crypto Fear & Greed Index now, yesterday and last week. Each has a 0-100 `value` and a `value_classification` (Extreme fear, Fear, Neutral, Greed, Extreme greed); `now.update_time` is when it was last updated. This is CoinStats\' own index and can differ from other sites\' Fear & Greed figures.',
+            '- `fear-and-greed-chart`: the full daily history of the same index.',
+            '- `btc-dominance`: Bitcoin\'s share of total crypto market cap over time, as [timestamp, percentage] pairs. Requires `type` (the time range).',
+            '- `rainbow-chart`: Rainbow Chart price history. Requires `coinId` (`bitcoin` or `ethereum`).',
+            'Each call costs 10 API credits.',
+        ].join('\n'),
+        endpoint: '/insights/fear-and-greed',
+        endpointBy: {
+            param: 'insight',
+            endpoints: {
+                'fear-and-greed': '/insights/fear-and-greed',
+                'fear-and-greed-chart': '/insights/fear-and-greed/chart',
+                'btc-dominance': '/insights/btc-dominance',
+                'rainbow-chart': '/insights/rainbow-chart/{coinId}',
+            },
+        },
+        method: 'GET',
+        parameters: {
+            insight: z
+                .enum(['fear-and-greed', 'fear-and-greed-chart', 'btc-dominance', 'rainbow-chart'])
+                .describe('Which indicator to fetch.'),
+            type: z
+                .enum(['24h', '1w', '1m', '3m', '6m', '1y', 'all'])
+                .optional()
+                .describe('Time range. Required for `btc-dominance`, ignored otherwise.'),
+            coinId: z
+                .enum(['bitcoin', 'ethereum'])
+                .optional()
+                .describe('Coin. Required for `rainbow-chart`, ignored otherwise.'),
+        },
+    },
+
+    // Prediction Markets Tool Configurations
+    {
+        name: 'search-prediction-markets',
+        annotations: readOnly('Search Prediction Markets', false),
+        description: 'Full-text search across prediction-market events, markets and traders on Polymarket and Kalshi. Use it to find markets on a topic (e.g. "bitcoin", "fed rate"); each market carries a `slug` to pass to `get-prediction-market`. Prices are probabilities from 0 to 1; money is USD. Costs 3 API credits.',
+        endpoint: '/prediction/search',
+        method: 'GET',
+        parameters: {
+            q: z.string().min(2).describe('Search text, at least 2 characters.'),
+            type: z.enum(['events', 'markets', 'traders']).optional().describe('Return only this kind of result. Omit to get all three.'),
+            limit: z.number().int().min(1).max(50).optional().describe('Maximum results per kind (1-50, default 20).'),
+            view: z
+                .enum(['intl', 'us', 'all'])
+                .optional()
+                .describe('Venues to search: `intl` (default) Polymarket and Kalshi, `us` Polymarket US and Kalshi, `all` every venue.'),
+        },
+    },
+    {
+        name: 'get-prediction-markets',
+        annotations: readOnly('List Prediction Markets', false),
+        description: 'List prediction markets across Polymarket and Kalshi, sorted by 24h traded volume by default. Use it for "top" or "most traded" markets; use `search-prediction-markets` to find a topic. Each market carries a `slug` for `get-prediction-market`. Prices are probabilities from 0 to 1; money is USD. Paginate with `limit` and `offset` (`meta` has the totals). Costs 2 API credits.',
+        endpoint: '/prediction/markets',
+        method: 'GET',
+        parameters: {
+            active: z
+                .enum(['true', 'false'])
+                .optional()
+                .describe('`true` (default) for live markets; `false` for ended or inactive ones.'),
+            source: z.enum(['polymarket', 'kalshi', 'polymarket-us']).optional().describe('Only markets from this venue.'),
+            sort: z
+                .enum(['volume24hr', 'volume', 'liquidity', 'endDate'])
+                .optional()
+                .describe('Sort field (default `volume24hr`). `volume` is lifetime volume.'),
+            order: z.enum(['asc', 'desc']).optional().describe('Sort direction (default `desc`).'),
+            limit: z.number().int().min(1).max(100).optional().describe('Results per page (1-100, default 50).'),
+            offset: z.number().int().min(0).optional().describe('Number of results to skip (default 0).'),
+            view: z
+                .enum(['intl', 'us', 'all'])
+                .optional()
+                .describe('Venues listed when `source` is not set: `intl` (default) Polymarket and Kalshi, `us` Polymarket US and Kalshi, `all` every venue.'),
+        },
+    },
+    {
+        name: 'get-prediction-events',
+        annotations: readOnly('List Prediction Market Events', false),
+        description: [
+            'List prediction-market events (a question with its related markets) across Polymarket and Kalshi, as the CoinStats odds browser does.',
+            'For the biggest price differences between venues, call with `pairs: "only"`, `sort: "gap"` and `include: "prices"`: each row then carries `pair`, the same question priced on both venues, with the gap. Pairs trading at least $1K in 24h rank ahead of thinly traded ones, whose gap may be a stale quote.',
+            '`sort: "gap"` only works with `pairs: "only"`. `sort: "closing"` lists the soonest-ending events first. Prices are probabilities from 0 to 1; money is USD. Costs 2 API credits.',
+        ].join('\n'),
+        endpoint: '/prediction/events',
+        method: 'GET',
+        parameters: {
+            pairs: z
+                .enum(['only', 'once'])
+                .optional()
+                .describe('`only`: just events priced on more than one venue. `once`: every event, each cross-venue pair listed once. Omit for every event as each venue lists it.'),
+            sort: z
+                .enum(['volume24hr', 'volume', 'endDate', 'closing', 'gap'])
+                .optional()
+                .describe('Sort (default `volume24hr`). `gap`: largest price difference between venues first, needs `pairs: "only"`. `closing`: soonest end first. `volume` is lifetime volume.'),
+            order: z.enum(['asc', 'desc']).optional().describe('Sort direction for `volume24hr`, `volume` and `endDate` (default `desc`).'),
+            // The browser's categories (prediction-markets src/data/taxonomy.json); add new upstream ones here.
+            category: z
+                .enum(['politics', 'crypto', 'economy', 'sports', 'culture', 'tech', 'world', 'climate', 'health'])
+                .optional()
+                .describe('Only events in this category.'),
+            q: z.string().min(2).max(80).optional().describe('Search text (2-80 characters) matched against event titles.'),
+            include: z
+                .enum(['prices'])
+                .optional()
+                .describe('`prices` adds each row\'s cross-venue `pair` with both venues\' prices and their gap. With it, at most 24 rows are returned.'),
+            source: z.enum(['polymarket', 'kalshi', 'polymarket-us']).optional().describe('Only events from this venue.'),
+            active: z.enum(['true', 'false']).optional().describe('`true` for live events; `false` for ended or inactive ones.'),
+            limit: z.number().int().min(1).max(100).optional().describe('Results per page (1-100, default 50; at most 24 with `include: "prices"`).'),
+            offset: z.number().int().min(0).optional().describe('Number of results to skip (default 0).'),
+            view: z
+                .enum(['intl', 'us', 'all'])
+                .optional()
+                .describe('Venues listed when `source` is not set: `intl` (default) Polymarket and Kalshi, `us` Polymarket US and Kalshi, `all` every venue.'),
+        },
+    },
+    {
+        name: 'get-prediction-market',
+        annotations: readOnly('Get Prediction Market', false),
+        description: 'Get one prediction market by its `slug`: the question, outcomes with current prices, 24h and lifetime volume, liquidity, resolution status, and the event and tags it belongs to. Prices are probabilities from 0 to 1; money is USD. Costs 1 API credit.',
+        endpoint: '/prediction/markets/{slug}',
+        method: 'GET',
+        parameters: {
+            slug: z.string().min(1).describe('Market slug from `search-prediction-markets` or `get-prediction-markets`.'),
+        },
     },
 
     // Portfolio List Tool Configuration
@@ -637,6 +802,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
                 .optional()
                 .describe('Portfolio id from get-portfolio-list. Omit to aggregate all of the user\'s portfolios.'),
             type: z.string().describe('One of 24h, 1w, 1m, 3m, 6m, 1y, all'),
+            currency: z.string().optional().describe('Currency for chart values. Default USD.'),
         },
     },
 
@@ -676,6 +842,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
             limit: z.number().optional().describe('Number of results per page').default(20),
             currency: z.string().describe('Currency for price data'),
             coinId: z.string().optional().describe('Filter by coin ID'),
+            types: z.string().optional().describe('Comma-separated transaction types to filter by, e.g. "balance".'),
             hideUnidentifiedCoins: z
                 .boolean()
                 .optional()

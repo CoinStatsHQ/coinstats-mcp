@@ -33,6 +33,15 @@ export interface ToolConfig<T> {
      */
     paramsInQuery?: boolean;
     /**
+     * For a tool that fronts several related routes: the value of `param`
+     * picks the route from `endpoints`, and is not sent to the API. Lets one
+     * tool cover a family like `/insights/*` instead of one tool per route.
+     * A value with no entry is a tool error, never a call to another route:
+     * the Worker does not run the zod schema, so a typo must not quietly
+     * return a different indicator.
+     */
+    endpointBy?: { param: string; endpoints: Record<string, string> };
+    /**
      * Optional human-facing message returned in place of an empty payload.
      * Used by the portfolio read tools: when the caller supplies no portfolio
      * selector (`portfolioId`) and the API returns nothing, we
@@ -95,9 +104,22 @@ export async function invokeTool(
     const bodyMethods = ['POST', 'PUT', 'PATCH', 'DELETE'];
     const sendAsBody = bodyMethods.includes(method.toUpperCase()) && !config.paramsInQuery;
 
+    let endpoint = config.endpoint;
+    let apiParams = params;
+    if (config.endpointBy) {
+        const { param, endpoints } = config.endpointBy;
+        const { [param]: selector, ...rest } = params;
+        if (!Object.hasOwn(endpoints, selector)) {
+            const message = `Error: unknown ${param} '${selector}'; expected one of ${Object.keys(endpoints).join(', ')}`;
+            return { content: [{ type: 'text', text: message, isError: true }], isError: true };
+        }
+        endpoint = endpoints[selector];
+        apiParams = rest;
+    }
+
     const result = sendAsBody
-        ? await universalApiHandler(basePath, config.endpoint, method, {}, params, token)
-        : await universalApiHandler(basePath, config.endpoint, method, params, undefined, token);
+        ? await universalApiHandler(basePath, endpoint, method, {}, apiParams, token)
+        : await universalApiHandler(basePath, endpoint, method, apiParams, undefined, token);
 
     // When a portfolio read is called without a selector and comes back
     // empty, return actionable guidance instead of the bare empty payload
