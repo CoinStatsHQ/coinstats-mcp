@@ -108,3 +108,23 @@ test('get-portfolio-transactions forwards both spam filters', async () => {
     assert.equal(params.get('hideUnidentifiedCoins'), 'true');
     assert.equal(params.get('excludeDetectedSpam'), 'true');
 });
+
+test('paginated tools accept whole page numbers and sizes', () => {
+    const { allToolConfigs } = loadModule('tools/toolConfigs.ts');
+    for (const { name, parameters } of allToolConfigs) {
+        for (const field of ['page', 'limit']) {
+            const schema = parameters?.[field];
+            if (!schema) continue;
+            assert.equal(schema.safeParse(1.5).success, false, name + ' ' + field);
+            assert.equal(schema.safeParse(1).success, true, name + ' ' + field);
+        }
+    }
+});
+
+test('manual transactions validate milliseconds and note length while accepting fractional amounts', () => {
+    const schema = z.object(tool('add-portfolio-transaction').parameters);
+    const base = { coinId: 'bitcoin', portfolioId: 'example', count: -0.25, price: 1.75 };
+    assert.equal(schema.safeParse({ ...base, date: 1715948176654, notes: '😀'.repeat(500) }).success, true);
+    assert.equal(schema.safeParse({ ...base, date: 1.5 }).success, false);
+    assert.equal(schema.safeParse({ ...base, notes: '😀'.repeat(501) }).success, false);
+});
