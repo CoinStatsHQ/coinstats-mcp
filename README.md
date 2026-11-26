@@ -150,6 +150,16 @@ The hosted server is a stateless Cloudflare Worker (~225 KiB / ~41 KiB gzipped) 
 
 Source: [`src/worker.ts`](./src/worker.ts). Config: [`wrangler.jsonc`](./wrangler.jsonc).
 
+### ChatGPT tool profile
+
+`https://mcp.coinstats.app/chatgpt/mcp` serves the tool set submitted to the ChatGPT plugin directory. It uses the same OAuth flow as `/mcp`, with these differences:
+
+- It leaves out the news tools, `connect-portfolio-exchange` and `get-exchanges`.
+- `get-coins` accepts fewer filters, and `search-prediction-markets` returns markets or events, never traders.
+- Every call's arguments are validated against the tool's advertised schema, and any extra keys are dropped.
+
+All other clients should use `/mcp`. The profile is defined in [`src/tools/profiles.ts`](./src/tools/profiles.ts).
+
 ## Local development
 
 The repo ships two entry points:

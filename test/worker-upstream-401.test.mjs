@@ -35,7 +35,7 @@ function loadWorker({ invokeTool, fetchStub = async () => { throw new Error('une
         require(specifier) {
             if (specifier === 'zod') return { z: { object: () => ({}) } };
             if (specifier === 'zod-to-json-schema') return { zodToJsonSchema: () => ({}) };
-            if (specifier === './tools/toolConfigs.js') return { allToolConfigs: [{ name: 't', description: 'd', parameters: {}, annotations: { title: 'T', readOnlyHint: true, destructiveHint: false, openWorldHint: false } }] };
+            if (specifier === './tools/profiles.js') return { DEFAULT_PROFILE: { name: 'default', tools: [{ name: 't', description: 'd', parameters: {}, annotations: { title: 'T', readOnlyHint: true, destructiveHint: false, openWorldHint: false } }], strictArguments: false }, CHATGPT_PROFILE: { name: 'chatgpt', tools: [], strictArguments: true } };
             if (specifier === './tools/toolFactory.js') return { invokeTool };
             throw new Error(`Unexpected test import: ${specifier}`);
         },

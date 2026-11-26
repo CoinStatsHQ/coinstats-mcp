@@ -51,7 +51,7 @@ function loadWorker(allToolConfigs) {
         require(specifier) {
             if (specifier === 'zod') return requireReal('zod');
             if (specifier === 'zod-to-json-schema') return requireReal('zod-to-json-schema');
-            if (specifier === './tools/toolConfigs.js') return { allToolConfigs };
+            if (specifier === './tools/profiles.js') return { DEFAULT_PROFILE: { name: 'default', tools: allToolConfigs, strictArguments: false }, CHATGPT_PROFILE: { name: 'chatgpt', tools: [], strictArguments: true } };
             if (specifier === './tools/toolFactory.js') return { invokeTool: async () => ({ content: [] }) };
             throw new Error(`Unexpected test import: ${specifier}`);
         },
