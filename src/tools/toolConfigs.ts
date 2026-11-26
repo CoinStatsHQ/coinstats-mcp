@@ -98,8 +98,8 @@ export const allToolConfigs: ToolConfig<any>[] = [
         method: 'GET',
         parameters: {
             name: z.string().optional().describe('Search coins by name'),
-            page: z.number().optional().describe('Page number').default(1),
-            limit: z.number().optional().describe('Number of results per page').default(20),
+            page: z.number().int().optional().describe('Page number').default(1),
+            limit: z.number().int().optional().describe('Number of results per page').default(20),
             currency: z.string().optional().describe('Currency for price data').default('USD'),
             symbol: z.string().optional().describe('Get coins by symbol'),
             blockchains: z.string().optional().describe('Blockchain filters, separated by commas (e.g., ethereum,solana)'),
@@ -234,8 +234,8 @@ export const allToolConfigs: ToolConfig<any>[] = [
         endpoint: '/tickers/markets',
         method: 'GET',
         parameters: {
-            page: z.number().optional().describe('Page number').default(1),
-            limit: z.number().optional().describe('Number of results per page').default(20),
+            page: z.number().int().optional().describe('Page number').default(1),
+            limit: z.number().int().optional().describe('Number of results per page').default(20),
             exchange: z.string().optional().describe('Exchange name'),
             fromCoin: z.string().optional().describe('From currency/coin symbol'),
             toCoin: z.string().optional().describe('To currency/coin symbol'),
@@ -359,7 +359,7 @@ export const allToolConfigs: ToolConfig<any>[] = [
                 .string()
                 .optional()
                 .describe('Several wallets as comma-separated connectionId:address pairs, e.g. "ethereum:0xabc...,solana:5xyz...", in place of address + connectionId.'),
-            page: z.number().optional().describe('Page number').default(1),
+            page: z.number().int().optional().describe('Page number').default(1),
             limit: z.number().int().min(1).max(200).optional().describe('Number of results per page, from 1 to 200.').default(20),
             from: z.string().optional().describe('Start date in ISO 8601 format'),
             to: z.string().optional().describe('End date in ISO 8601 format'),
@@ -479,8 +479,8 @@ export const allToolConfigs: ToolConfig<any>[] = [
         method: 'GET',
         parameters: {
             portfolioId: z.string().describe('The identifier of portfolio, which you received from /exchange/balance response.'),
-            page: z.number().optional().describe('Page number').default(1),
-            limit: z.number().optional().describe('Number of results per page').default(20),
+            page: z.number().int().optional().describe('Page number').default(1),
+            limit: z.number().int().optional().describe('Number of results per page').default(20),
             from: z.string().optional().describe('Start date in ISO 8601 format'),
             to: z.string().optional().describe('End date in ISO 8601 format'),
             currency: z.string().optional().describe('Currency for price data').default('USD'),
@@ -539,8 +539,8 @@ export const allToolConfigs: ToolConfig<any>[] = [
         endpoint: '/news',
         method: 'GET',
         parameters: {
-            page: z.number().max(100).optional().describe('Page number, up to 100').default(1),
-            limit: z.number().max(100).optional().describe('Number of results per page, up to 100').default(20),
+            page: z.number().int().max(100).optional().describe('Page number, up to 100').default(1),
+            limit: z.number().int().max(100).optional().describe('Number of results per page, up to 100').default(20),
             from: z.string().optional().describe('Start date in ISO 8601 format'),
             to: z.string().optional().describe('End date in ISO 8601 format'),
         },
@@ -563,8 +563,8 @@ export const allToolConfigs: ToolConfig<any>[] = [
         method: 'GET',
         parameters: {
             type: z.enum(['handpicked', 'trending', 'latest', 'bullish', 'bearish']).describe('News feed. See the tool description for what each feed contains.'),
-            page: z.number().optional().describe('Page number').default(1),
-            limit: z.number().optional().describe('Number of results per page').default(20),
+            page: z.number().int().optional().describe('Page number').default(1),
+            limit: z.number().int().optional().describe('Number of results per page').default(20),
         },
     },
 
@@ -781,8 +781,8 @@ export const allToolConfigs: ToolConfig<any>[] = [
                 .string()
                 .optional()
                 .describe('Portfolio id from get-portfolio-list. Omit to aggregate all of the user\'s portfolios.'),
-            page: z.number().optional().describe('Page number').default(1),
-            limit: z.number().optional().describe('Number of results per page').default(20),
+            page: z.number().int().optional().describe('Page number').default(1),
+            limit: z.number().int().optional().describe('Number of results per page').default(20),
             includeRiskScore: z.string().optional().describe('Include risk score: true or false. Default - false'),
         },
     },
@@ -838,8 +838,8 @@ export const allToolConfigs: ToolConfig<any>[] = [
                 .string()
                 .optional()
                 .describe('Portfolio id from get-portfolio-list. Omit to aggregate all of the user\'s portfolios.'),
-            page: z.number().optional().describe('Page number').default(1),
-            limit: z.number().optional().describe('Number of results per page').default(20),
+            page: z.number().int().optional().describe('Page number').default(1),
+            limit: z.number().int().optional().describe('Number of results per page').default(20),
             currency: z.string().describe('Currency for price data'),
             coinId: z.string().optional().describe('Filter by coin ID'),
             types: z.string().optional().describe('Comma-separated transaction types to filter by, e.g. "balance".'),
@@ -914,10 +914,10 @@ export const allToolConfigs: ToolConfig<any>[] = [
             coinId: z.string().describe('Coin ID from CoinStats (e.g. "bitcoin"). For fiats use the form "FiatCoinUSD".'),
             count: z.number().describe('Amount of coin. For sell transactions, this should be negative.'),
             price: z.number().optional().describe('Price of coin in USD at the time of transaction.'),
-            date: z.number().optional().describe('Transaction date in milliseconds (Unix epoch ms). Defaults to now if omitted.'),
+            date: z.number().int().optional().describe('Transaction date in milliseconds (Unix epoch ms). Defaults to now if omitted.'),
             portfolioId: z.string().describe('Target manual portfolio id from get-portfolio-list.'),
             currency: z.string().optional().describe('Currency for the price. Default is USD.'),
-            notes: z.string().optional().describe('Transaction notes.'),
+            notes: z.string().max(1000).optional().describe('Transaction notes.'),
         },
     },
 
