@@ -1,8 +1,12 @@
 # CoinStats MCP Server
 
-Hosted [Model Context Protocol](https://modelcontextprotocol.io/) server for the CoinStats API. Lets AI agents (Claude, Cursor, Codex, ChatGPT — anything that speaks MCP) read and act on the same crypto data the CoinStats apps use, over a single OAuth-protected HTTPS URL.
+Hosted [Model Context Protocol](https://modelcontextprotocol.io/) server for the CoinStats API. Lets AI agents (Claude, ChatGPT, Cursor, VS Code, Codex — anything that speaks MCP) read and act on the same crypto data the CoinStats apps use, over a single OAuth-protected HTTPS URL.
+
+**44 tools** cover prices and market data for 100,000+ coins, wallets on 120+ blockchains, DeFi positions, exchange accounts, CoinStats portfolios with P/L, crypto news, market indicators and prediction markets.
 
 There's no API key to copy and no env var to manage: each user authorises the agent against their own CoinStats account in the browser, and the agent gets a per-user token from then on.
+
+**Set it up in one click from [coinstats.app/mcp](https://coinstats.app/mcp)**, or follow the per-client steps below.
 
 <a href="https://glama.ai/mcp/servers/@CoinStatsHQ/coinstats-mcp">
   <img width="380" height="200" src="https://glama.ai/mcp/servers/@CoinStatsHQ/coinstats-mcp/badge" alt="CoinStats Server MCP server" />
@@ -25,6 +29,16 @@ https://mcp.coinstats.app/mcp
 ```
 
 A browser window opens at `coinstats.app/openapi/consent`. Sign in (or recognise your existing session), review the requested access, click **Approve**.
+
+### ChatGPT
+
+On the **Plugins** page, click **Add** and choose **Add custom MCP server**. Enter:
+
+- **Name:** CoinStats
+- **Server URL:** `https://mcp.coinstats.app/mcp`
+- **Authentication:** OAuth
+
+Check **I understand and want to continue**, click **Create as a plugin**, then install CoinStats from the **Personal** tab and approve access when asked. In a chat, type `@` and pick CoinStats, or just ask about your crypto. If you don't see **Add custom MCP server**, your workspace admin may have turned off custom MCP servers.
 
 ### Cursor
 
@@ -67,24 +81,35 @@ codex mcp login coinstats
 
 After the login step `codex mcp list` should show `Auth: OAuth` for `coinstats`.
 
+### VS Code (GitHub Copilot)
+
+```bash
+code --add-mcp '{"name":"coinstats","type":"http","url":"https://mcp.coinstats.app/mcp"}'
+```
+
+Use it from Copilot Chat in agent mode. VS Code asks you to sign in to CoinStats on first use.
+
 ### Other MCP clients
 
-Any client that speaks the [Streamable HTTP](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http) transport with OAuth 2.1 authorization will work. Point it at `https://mcp.coinstats.app/mcp` — Dynamic Client Registration ([RFC 7591](https://datatracker.ietf.org/doc/html/rfc7591)) is supported, so no pre-shared `client_id` is needed.
+Windsurf, Cline, Gemini CLI, n8n and any other client that speaks the [Streamable HTTP](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http) transport with OAuth 2.1 authorization will work. Point it at `https://mcp.coinstats.app/mcp` — Dynamic Client Registration ([RFC 7591](https://datatracker.ietf.org/doc/html/rfc7591)) is supported, so no pre-shared `client_id` is needed.
 
-## What you can do
+## Tools
 
-After authorising, your agent can:
+The server exposes 44 tools. After authorising, your agent can:
 
-- Look up real-time prices, charts and market data for 100,000+ coins
-- Read your CoinStats portfolio coins, P/L and performance over time
-- Query wallet balances and transactions across 120+ blockchains
-- Read open perpetual and futures positions from connected exchanges, including Hyperliquid, with leverage, P/L and funding where available
-- Read synced perpetual trade history with `get-perpetual-trades`, including prices, realized P/L and fees where available. Supports `portfolioId` and `limit`/`skip` pagination; coverage depends on the connector and last sync.
-- Retrieve cash-flow-adjusted historical P/L for wallets, exchanges, and portfolios over preset or custom calendar ranges
-- Compare ticker pricing across 200+ exchanges
-- Pull crypto news (latest, trending, filtered by source or topic)
+| Area | Tools | What it can do |
+|---|---|---|
+| Market data | 10 | Real-time prices, market cap, volume and charts for 100,000+ coins; historical average and per-exchange prices; tickers across 200+ exchanges; global market stats; supported currencies |
+| Market insights | 1 | CoinStats Fear & Greed Index (current and past year), Bitcoin dominance, Rainbow Chart |
+| Wallets & DeFi | 8 | Balances and transactions for any address on 120+ blockchains, cash-flow-adjusted P/L history, DeFi positions (staking, liquidity pools, yield farming, rewards) |
+| Exchanges | 6 | Supported exchanges, transactions and P/L history for connected accounts, open perpetual and futures positions and perpetual trade history (including Hyperliquid) |
+| Portfolios | 11 | Your CoinStats portfolios: holdings, value chart, P/L history, transactions, sync status; connect a wallet or exchange, add a manual transaction, delete a portfolio |
+| News | 4 | Latest, trending and handpicked crypto news with bullish/bearish reaction counts, by date range; single articles; news sources |
+| Prediction markets | 4 | Search and browse Polymarket and Kalshi events and markets with current prices and volume |
 
-Full tool catalog: [https://coinstats.app/api-docs/mcp/tools](https://coinstats.app/api-docs/mcp/tools).
+Six tools change data on the user's account (syncing, connecting a wallet or exchange, adding a transaction, deleting a portfolio). Every tool carries MCP annotations (`readOnlyHint`, `destructiveHint`, `openWorldHint`), so clients can ask for confirmation before running them.
+
+Full tool reference with parameters: [coinstats.app/api-docs/mcp/tools](https://coinstats.app/api-docs/mcp/tools).
 
 ## Authentication
 
@@ -138,6 +163,15 @@ Or via Docker:
 ```
 
 This path is the right choice for headless / unattended integrations where there's no human to click "Approve". Get a key from the [CoinStats API Dashboard](https://openapi.coinstats.app).
+
+The npm and Docker releases can lag behind `main`. To run the current tool set over stdio, build from source:
+
+```bash
+git clone https://github.com/CoinStatsHQ/coinstats-mcp.git
+cd coinstats-mcp
+npm run build
+COINSTATS_API_KEY=<YOUR_API_KEY> node dist/index.js
+```
 
 ## Architecture
 
@@ -197,6 +231,8 @@ wrangler secret put OPENAI_APPS_CHALLENGE
 
 ## Related
 
+- [CoinStats MCP](https://coinstats.app/mcp) — one-click setup for Claude, ChatGPT, Cursor, VS Code and other clients
+- [Tool reference](https://coinstats.app/api-docs/mcp/tools) — every tool with its parameters
 - [CoinStats API docs](https://coinstats.app/api-docs) — full REST surface, MCP setup guide, tool catalog
 - [API dashboard](https://openapi.coinstats.app) — for stdio-mode users to manage their developer API key
 
