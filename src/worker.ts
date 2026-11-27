@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
-import { allToolConfigs } from './tools/toolConfigs.js';
+import { CHATGPT_PROFILE, DEFAULT_PROFILE, ToolProfile } from './tools/profiles.js';
 import { invokeTool, ToolConfig } from './tools/toolFactory.js';
 
 interface Env {
@@ -234,7 +234,8 @@ function recordEvent(actx: AnalyticsContext, msg: any, res: any, durationMs: num
 async function dispatch(
     msg: any,
     token: string,
-    protocolVersion: string
+    protocolVersion: string,
+    profile: ToolProfile
 ): Promise<any | null> {
     const id = msg?.id;
     const method = msg?.method;
@@ -267,16 +268,28 @@ async function dispatch(
         return {
             jsonrpc: '2.0',
             id,
-            result: { tools: allToolConfigs.map(toolDescriptor) },
+            result: { tools: profile.tools.map(toolDescriptor) },
         };
     }
 
     if (method === 'tools/call') {
         const name = msg.params?.name;
-        const args = msg.params?.arguments || {};
-        const cfg = allToolConfigs.find((c) => c.name === name);
+        let args = msg.params?.arguments || {};
+        const cfg = profile.tools.find((c) => c.name === name);
         if (!cfg) {
             return jsonRpcError(id, -32601, `Tool not found: ${name}`);
+        }
+        if (profile.strictArguments) {
+            // Only the advertised inputs reach the API: unknown keys are
+            // dropped and values must match the schema.
+            const parsed = z.object(cfg.parameters).safeParse(args);
+            if (!parsed.success) {
+                const detail = parsed.error.issues
+                    .map((i) => `${i.path.join('.') || 'arguments'}: ${i.message}`)
+                    .join('; ');
+                return jsonRpcError(id, -32602, `Invalid arguments for ${name}: ${detail}`);
+            }
+            args = parsed.data;
         }
         try {
             const result = await invokeTool(cfg, args, token);
@@ -291,7 +304,7 @@ async function dispatch(
     return jsonRpcError(id, -32601, `Method not found: ${method}`);
 }
 
-async function handleMcpPost(request: Request, env: Env): Promise<Response> {
+async function handleMcpPost(request: Request, env: Env, profile: ToolProfile): Promise<Response> {
     const token = extractBearer(request);
     if (!token) return unauthorized(env, request, 'Missing bearer token');
 
@@ -322,7 +335,7 @@ async function handleMcpPost(request: Request, env: Env): Promise<Response> {
             messages.map(async (m) => {
                 const started = Date.now();
                 try {
-                    const res = await dispatch(m, token, protocolVersion);
+                    const res = await dispatch(m, token, protocolVersion, profile);
                     recordEvent(actx, m, res, Date.now() - started);
                     return res;
                 } catch (err) {
@@ -398,10 +411,12 @@ export default {
         // scope rather than falling back to the AS metadata's broader list.
         if (
             url.pathname === '/.well-known/oauth-protected-resource' ||
-            url.pathname === '/.well-known/oauth-protected-resource/mcp'
+            url.pathname === '/.well-known/oauth-protected-resource/mcp' ||
+            url.pathname === '/.well-known/oauth-protected-resource/chatgpt/mcp'
         ) {
             const base = resolveResourceUrl(env, request);
-            const resource = url.pathname.endsWith('/mcp') ? `${base}/mcp` : base;
+            const suffix = url.pathname.slice('/.well-known/oauth-protected-resource'.length);
+            const resource = `${base}${suffix}`;
             return new Response(JSON.stringify(protectedResourceMetadata(env, resource)), {
                 headers: { 'Content-Type': 'application/json', ...corsHeaders() },
             });
@@ -445,9 +460,12 @@ export default {
             }
         }
 
-        // MCP endpoints
-        if (url.pathname === '/mcp') {
-            if (request.method === 'POST') return handleMcpPost(request, env);
+        // MCP endpoints. `/chatgpt/mcp` serves the ChatGPT plugin's tool
+        // profile (see tools/profiles.ts); everything else uses `/mcp`.
+        const profile =
+            url.pathname === '/mcp' ? DEFAULT_PROFILE : url.pathname === '/chatgpt/mcp' ? CHATGPT_PROFILE : undefined;
+        if (profile) {
+            if (request.method === 'POST') return handleMcpPost(request, env, profile);
 
             // GET is the Streamable-HTTP SSE upgrade. This server is stateless
             // and never pushes server-initiated messages, and the spec's answer
